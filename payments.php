@@ -177,17 +177,68 @@ $conn->close();
                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50"
                                    placeholder="เช่น 500.00">
                         </div>
+                            <!-- Payment Method -->
+                            <div>
+                                <label for="payment_method" class="block text-sm font-medium text-gray-700">ช่องทางการชำระเงิน:</label>
+                                <select id="payment_method" name="payment_method" required
+                                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                                    <option value="">เลือกการชำละ</option>
+                                    <option value="bank_transfer">โอนเงินผ่านธนาคาร</option>
+                                    <option value="qrcode">สแกน QR Code</option>
+                                </select>
+                            </div>
 
-                        <!-- Payment Method -->
-                        <div>
-                            <label for="payment_method" class="block text-sm font-medium text-gray-700">ช่องทางการชำระเงิน:</label>
-                            <select id="payment_method" name="payment_method" required
-                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="bank_transfer">โอนเงินผ่านธนาคาร</option>
-                                <option value="credit_card">บัตรเครดิต</option>
-                                <option value="cash">เงินสด</option>
-                            </select>
-                        </div>
+                            <!-- Bank Transfer Box -->
+                            <div id="bank-box" class="mt-4 hidden text-center">
+                                <p class="text-sm text-gray-600 mb-2">โอนเข้าบัญชีธนาคาร:</p>
+                                <div class="bg-gray-100 p-4 rounded-lg shadow inline-block text-left">
+                                    <p><span class="font-semibold">ธนาคาร:</span> กสิกรไทย</p>
+                                    <p><span class="font-semibold">เลขที่บัญชี:</span> 123-4-56789-0</p>
+                                    <p><span class="font-semibold">ชื่อบัญชี:</span> นายทดสอบ ระบบ</p>
+                                </div>
+                            </div>
+
+                            <!-- QR Code Box -->
+                            <div id="qrcode-box" class="mt-4 hidden text-center">
+                                <p class="text-sm text-gray-600 mb-2">สแกน QR Code เพื่อชำระเงิน:</p>
+                                <div class="flex justify-center">
+                                    <img src="qrcode.png" alt="QR Code" class="w-56 h-56 border rounded-lg shadow">
+                                </div>
+                            </div>
+
+                            <!-- Slip Upload Box -->
+                            <div id="slip-box" class="mt-4 hidden">
+                                <label for="slip" class="block text-sm font-medium text-gray-700">อัปโหลดสลิปการโอน:</label>
+                                <input type="file" id="slip" name="slip" accept="image/*" required
+                                    class="mt-1 block w-full text-sm text-gray-700 border border-gray-300 rounded-md shadow-sm cursor-pointer focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+
+                            <script>
+                                const paymentSelect = document.getElementById('payment_method');
+                                const bankBox = document.getElementById('bank-box');
+                                const qrBox = document.getElementById('qrcode-box');
+                                const slipBox = document.getElementById('slip-box');
+                                const slipInput = document.getElementById('slip');
+
+                                paymentSelect.addEventListener('change', function() {
+                                    if (this.value === 'bank_transfer') {
+                                        bankBox.classList.remove('hidden');
+                                        qrBox.classList.add('hidden');
+                                        slipBox.classList.remove('hidden');
+                                        slipInput.required = true;
+                                    } else if (this.value === 'qrcode') {
+                                        qrBox.classList.remove('hidden');
+                                        bankBox.classList.add('hidden');
+                                        slipBox.classList.remove('hidden');
+                                        slipInput.required = true;
+                                    } else {
+                                        bankBox.classList.add('hidden');
+                                        qrBox.classList.add('hidden');
+                                        slipBox.classList.add('hidden');
+                                        slipInput.required = false;
+                                    }
+                                });
+                            </script>
 
                         <button type="submit"
                                 class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
