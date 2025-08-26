@@ -1,0 +1,79 @@
+/* style.css */
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background: linear-gradient(135deg, #f0f9ff, #afdfff); /* พื้นหลังสบายตา */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.container {
+    background-color: #ffffff;
+    padding: 35px 45px;
+    border-radius: 15px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    width: 100%;
+    max-width: 400px;
+}
+
+form h2 {
+    text-align: center;
+    margin-bottom: 25px;
+    color: #333;
+}
+
+form input {
+    width: 100%;
+    padding: 14px 16px;
+    margin-bottom: 18px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    font-size: 16px;
+    transition: border 0.3s ease, box-shadow 0.3s ease;
+}
+
+form input:focus {
+    border-color: #6c63ff;
+    box-shadow: 0 0 8px rgba(108, 99, 255, 0.3);
+    outline: none;
+}
+
+form button {
+    width: 100%;
+    padding: 14px;
+    background-color: #6f9dff;
+    border: none;
+    border-radius: 10px;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.2s ease;
+}
+
+form button:hover {
+    background-color: #5d53d1;
+    transform: scale(1.02);
+}
+
+form p {
+    text-align: center;
+    margin-top: 18px;
+    color: #555;
+    font-size: 14px;
+}
+
+form p a {
+    color: #7b6fff;
+    text-decoration: none;
+}
+
+form p a:hover {
+    text-decoration: underline;
+}
+
+.error {
+    text-align: center;
+    color: red;
+    margin-bottom: 15px;
+}
