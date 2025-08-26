@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 26, 2025 at 04:24 PM
+-- Generation Time: Aug 26, 2025 at 06:53 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -66,7 +66,8 @@ CREATE TABLE `cats` (
 INSERT INTO `cats` (`id`, `user_id`, `name`, `color`, `age`, `gender`) VALUES
 (14, 0, 'catt', 'ssr', 2, 'female'),
 (22, 5, 'ไฟ', 'เเดง', 2, 'female'),
-(23, 3, 'หมูทะ', 'ดำ-ขาว', 2, 'male');
+(25, 3, 'หมูทะ', 'ส้ม ขาว', 2, 'male'),
+(26, 3, 'ไก่ทะ', 'ขาว', 3, 'female');
 
 -- --------------------------------------------------------
 
@@ -105,15 +106,17 @@ CREATE TABLE `payments` (
   `reservation_id` int(11) NOT NULL,
   `amount` decimal(10,2) NOT NULL,
   `payment_method` varchar(50) NOT NULL,
-  `payment_date` timestamp NOT NULL DEFAULT current_timestamp()
+  `slip_path` varchar(255) DEFAULT NULL,
+  `payment_date` timestamp NOT NULL DEFAULT current_timestamp(),
+  `user_id` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `payments`
 --
 
-INSERT INTO `payments` (`id`, `customer_id`, `reservation_id`, `amount`, `payment_method`, `payment_date`) VALUES
-(1, 5, 12, 450.00, 'credit_card', '2025-08-20 18:32:39');
+INSERT INTO `payments` (`id`, `customer_id`, `reservation_id`, `amount`, `payment_method`, `slip_path`, `payment_date`, `user_id`) VALUES
+(1, 5, 12, 450.00, 'credit_card', NULL, '2025-08-20 18:32:39', NULL);
 
 -- --------------------------------------------------------
 
@@ -137,7 +140,9 @@ CREATE TABLE `reservations` (
 --
 
 INSERT INTO `reservations` (`id`, `customer_id`, `cat_id`, `date_from`, `date_to`, `room_type`, `paid`, `total_cost`) VALUES
-(12, 5, 22, '2025-08-22', '2025-08-25', '0', 1, 450.00);
+(12, 5, 22, '2025-08-22', '2025-08-25', '0', 1, 450.00),
+(16, 3, 25, '2025-08-27', '2025-09-01', '0', 0, 750.00),
+(17, 3, 26, '2025-08-27', '2025-08-29', '0', 0, 800.00);
 
 -- --------------------------------------------------------
 
@@ -225,7 +230,7 @@ ALTER TABLE `bookings`
 -- AUTO_INCREMENT for table `cats`
 --
 ALTER TABLE `cats`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
 
 --
 -- AUTO_INCREMENT for table `customers`
@@ -237,13 +242,13 @@ ALTER TABLE `customers`
 -- AUTO_INCREMENT for table `payments`
 --
 ALTER TABLE `payments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `reservations`
 --
 ALTER TABLE `reservations`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
 -- AUTO_INCREMENT for table `users`
