@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 26, 2025 at 06:53 PM
+-- Generation Time: Aug 26, 2025 at 10:59 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -65,9 +65,8 @@ CREATE TABLE `cats` (
 
 INSERT INTO `cats` (`id`, `user_id`, `name`, `color`, `age`, `gender`) VALUES
 (14, 0, 'catt', 'ssr', 2, 'female'),
-(22, 5, 'ไฟ', 'เเดง', 2, 'female'),
-(25, 3, 'หมูทะ', 'ส้ม ขาว', 2, 'male'),
-(26, 3, 'ไก่ทะ', 'ขาว', 3, 'female');
+(27, 3, 'moo ping', 'ดำ', 3, 'male'),
+(28, 7, 'free', 'black', 4, 'female');
 
 -- --------------------------------------------------------
 
@@ -116,7 +115,9 @@ CREATE TABLE `payments` (
 --
 
 INSERT INTO `payments` (`id`, `customer_id`, `reservation_id`, `amount`, `payment_method`, `slip_path`, `payment_date`, `user_id`) VALUES
-(1, 5, 12, 450.00, 'credit_card', NULL, '2025-08-20 18:32:39', NULL);
+(7, 3, 20, 300.00, 'bank_transfer', 'uploads/slip_3_20_1756240755_7566.jpg', '2025-08-26 20:39:15', NULL),
+(8, 3, 21, 300.00, 'qrcode', 'uploads/slip_3_21_1756240784_6968.jpg', '2025-08-26 20:39:44', NULL),
+(9, 7, 22, 1200.00, 'qrcode', 'uploads/slip_7_22_1756241281_5794.jpg', '2025-08-26 20:48:01', NULL);
 
 -- --------------------------------------------------------
 
@@ -132,17 +133,18 @@ CREATE TABLE `reservations` (
   `date_to` date NOT NULL,
   `room_type` varchar(255) NOT NULL,
   `paid` tinyint(1) NOT NULL DEFAULT 0,
-  `total_cost` decimal(10,2) NOT NULL DEFAULT 0.00
+  `total_cost` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `status` enum('pending','confirmed','cancelled') NOT NULL DEFAULT 'pending'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `reservations`
 --
 
-INSERT INTO `reservations` (`id`, `customer_id`, `cat_id`, `date_from`, `date_to`, `room_type`, `paid`, `total_cost`) VALUES
-(12, 5, 22, '2025-08-22', '2025-08-25', '0', 1, 450.00),
-(16, 3, 25, '2025-08-27', '2025-09-01', '0', 0, 750.00),
-(17, 3, 26, '2025-08-27', '2025-08-29', '0', 0, 800.00);
+INSERT INTO `reservations` (`id`, `customer_id`, `cat_id`, `date_from`, `date_to`, `room_type`, `paid`, `total_cost`, `status`) VALUES
+(20, 3, 27, '2025-08-28', '2025-08-30', '0', 1, 300.00, 'confirmed'),
+(21, 3, 27, '2025-08-28', '2025-08-30', '0', 1, 300.00, 'confirmed'),
+(22, 7, 28, '2025-08-29', '2025-09-06', '0', 1, 1200.00, 'confirmed');
 
 -- --------------------------------------------------------
 
@@ -165,9 +167,10 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `username`, `password`, `role`, `phone`, `email`, `address`) VALUES
-(3, 'test', '$2y$10$7BHm3tT7xK3EHO8YTkgbp.KAeuZj8M7h5LUfYa0EuVnmyVahsc1FC', 'user', '083-200-2001', 'test@oGc.com', ''),
+(3, 'test', '$2y$10$7BHm3tT7xK3EHO8YTkgbp.KAeuZj8M7h5LUfYa0EuVnmyVahsc1FC', 'user', '083-200-2001', 'test@oGc.com', 'vp^j'),
 (4, 'admin', '$2y$10$.HmYUCy/lRowAk59VXmP1unCMDvyw9HHZPiptnBV1T84QYCvhOhGq', 'admin', NULL, NULL, NULL),
-(5, 'hi', '$2y$10$4Xu9YLwu2r1Gl6Ifb1iLYe6koxnb/Ns8Da.3YcC1qG7Lu0zCcg/wS', 'user', '083-200-2002', 'jWTxhk@hyper.cper', '');
+(5, 'hi', '$2y$10$4Xu9YLwu2r1Gl6Ifb1iLYe6koxnb/Ns8Da.3YcC1qG7Lu0zCcg/wS', 'user', '083-200-2002', 'jWTxhk@hyper.cper', ''),
+(7, 'test1', '$2y$10$gDyKnfFQJ5AxYOt0LuMxBOM3oPqdgbi9UbvER/kXCuNwx77ohEw6u', 'user', NULL, NULL, NULL);
 
 --
 -- Indexes for dumped tables
@@ -230,7 +233,7 @@ ALTER TABLE `bookings`
 -- AUTO_INCREMENT for table `cats`
 --
 ALTER TABLE `cats`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- AUTO_INCREMENT for table `customers`
@@ -242,19 +245,19 @@ ALTER TABLE `customers`
 -- AUTO_INCREMENT for table `payments`
 --
 ALTER TABLE `payments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `reservations`
 --
 ALTER TABLE `reservations`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- Constraints for dumped tables
