@@ -26,12 +26,12 @@ if (!$user_id) {
     die("ไม่พบผู้ใช้");
 }
 
-// Fetch unpaid reservations for the current user to display in the payment form
+// Fetch confirmed and unpaid reservations for the current user
 $stmt = $conn->prepare("
     SELECT r.id, r.total_cost, r.date_from, r.date_to, c.name as cat_name
     FROM reservations r
     JOIN cats c ON r.cat_id = c.id
-    WHERE r.customer_id = ? AND r.paid = 0
+    WHERE r.customer_id = ? AND r.paid = 0 AND r.status = 'confirmed'
     ORDER BY r.date_from DESC
 ");
 $stmt->bind_param("i", $user_id);
@@ -41,43 +41,37 @@ $unpaid_reservations = $result->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
 // Handle new payment submission
-if (isset($_POST['action']) && $_POST['action'] === 'add_payment') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_payment') {
     // Basic inputs
     $reservation_id = isset($_POST['reservation_id']) ? (int)$_POST['reservation_id'] : 0;
     $amount = isset($_POST['amount']) ? (float)$_POST['amount'] : 0.0;
     $payment_method = isset($_POST['payment_method']) ? $_POST['payment_method'] : '';
 
-    // Allow only two methods
-    $allowed_methods = ['bank_transfer', 'qrcode'];
-    if (!in_array($payment_method, $allowed_methods, true)) {
-        $error = "วิธีชำระเงินไม่ถูกต้อง";
-    }
-
     // Require a valid reservation
-    if (!$error && $reservation_id === 0) {
+    if (!$reservation_id) {
         $error = "กรุณาเลือกการจองที่ต้องชำระเงิน";
+    } elseif ($amount <= 0) {
+        $error = "จำนวนเงินไม่ถูกต้อง";
+    } elseif (!in_array($payment_method, ['bank_transfer', 'qrcode'])) {
+        $error = "วิธีชำระเงินไม่ถูกต้อง";
+    } elseif (!isset($_FILES['slip']) || $_FILES['slip']['error'] !== UPLOAD_ERR_OK) {
+        $error = "กรุณาอัปโหลดสลิปการโอนเงิน";
     }
 
-    // Require slip file
+    // Validate the reservation belongs to this user, is confirmed, and is unpaid
     if (!$error) {
-        if (!isset($_FILES['slip']) || $_FILES['slip']['error'] !== UPLOAD_ERR_OK) {
-            $error = "กรุณาอัปโหลดสลิปการโอนเงิน";
-        }
-    }
-
-    // Validate the reservation belongs to this user and is unpaid
-    if (!$error) {
-        $stmt = $conn->prepare("SELECT total_cost FROM reservations WHERE id=? AND customer_id=? AND paid=0");
+        $stmt = $conn->prepare("SELECT total_cost FROM reservations WHERE id=? AND customer_id=? AND paid=0 AND status='confirmed'");
         $stmt->bind_param("ii", $reservation_id, $user_id);
         $stmt->execute();
         $res_check = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
         if (!$res_check) {
-            $error = "ไม่พบการจองที่เลือก หรือชำระแล้ว";
+            $error = "ไม่พบการจองที่เลือก, หรือสถานะยังไม่ได้รับการยืนยัน, หรือชำระแล้ว";
         } else {
             $expected = (float)$res_check['total_cost'];
-            if (abs($expected - $amount) > 0.009) {
+            // Use a small tolerance for floating point comparison
+            if (abs($expected - $amount) > 0.01) {
                 $error = "จำนวนเงินไม่ตรงกับยอดที่ต้องชำระ";
             }
         }
@@ -89,26 +83,20 @@ if (isset($_POST['action']) && $_POST['action'] === 'add_payment') {
         $uploadDir = __DIR__ . "/uploads/";
         $publicDir = "uploads/"; // path saved to DB and used for display
 
+        // Ensure upload directory exists and is writable
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0777, true);
         }
 
-        // create .htaccess to prevent php execution (apache)
-        $htaccess = $uploadDir . ".htaccess";
-        if (!file_exists($htaccess)) {
-            @file_put_contents($htaccess, "Options -Indexes\n<FilesMatch \"\.(php|phtml|php3|php4|php5|phps)$\">\nDeny from all\n</FilesMatch>\n");
-        }
-
         // MIME check
         $finfo = new finfo(FILEINFO_MIME_TYPE);
-        $mime  = $finfo->file($_FILES['slip']['tmp_name']);
+        $mime = $finfo->file($_FILES['slip']['tmp_name']);
         $allowed_mime = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
-
         if (!isset($allowed_mime[$mime])) {
             $error = "อนุญาตเฉพาะไฟล์รูปภาพ JPG/PNG/WebP เท่านั้น";
         }
 
-        // size limit 5MB
+        // Size limit 5MB
         if (!$error) {
             $maxSize = 5 * 1024 * 1024;
             if ($_FILES['slip']['size'] > $maxSize) {
@@ -118,6 +106,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'add_payment') {
 
         if (!$error) {
             $ext = $allowed_mime[$mime];
+            // Create a unique filename to avoid overwrites
             $safeName = "slip_" . $user_id . "_" . $reservation_id . "_" . time() . "_" . mt_rand(1000,9999) . "." . $ext;
             $dest = $uploadDir . $safeName;
 
@@ -129,7 +118,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'add_payment') {
         }
     }
 
-    // DB changes
+    // DB changes with transaction
     if (!$error) {
         $conn->begin_transaction();
         try {
@@ -139,7 +128,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'add_payment') {
             $stmt->execute();
             $stmt->close();
 
-            // Insert payment with slip_path (ensure payments table has slip_path column)
+            // Insert payment with slip_path
             $stmt = $conn->prepare("INSERT INTO payments (customer_id, reservation_id, amount, payment_method, slip_path) VALUES (?, ?, ?, ?, ?)");
             $stmt->bind_param("iidss", $user_id, $reservation_id, $amount, $payment_method, $saved_path);
             $stmt->execute();
@@ -180,7 +169,6 @@ $conn->close();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ชำระเงิน</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
@@ -189,7 +177,6 @@ $conn->close();
 </head>
 <body class="bg-gray-100 font-sans">
 <div class="flex min-h-screen">
-    <!-- Sidebar -->
     <aside class="w-64 bg-gray-800 text-white p-6 shadow-lg">
         <div class="text-xl font-semibold mb-8 text-center">CAT_HOTEL</div>
         <nav>
@@ -203,11 +190,9 @@ $conn->close();
         </nav>
     </aside>
 
-    <!-- Main -->
     <main class="flex-1 p-8">
         <h2 class="text-3xl font-bold mb-6 text-gray-800">การชำระเงินของฉัน</h2>
 
-        <!-- Alerts -->
         <?php
         if (!empty($error)) {
             echo '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">'
@@ -215,19 +200,17 @@ $conn->close();
                  '</div>';
         }
         if (isset($_GET['success']) && $_GET['success'] == 1) {
-            echo '<div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">ชำระเงินเรียบร้อยแล้ว!</div>';
+            echo '<div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">ชำระเงินเรียบร้อยแล้ว! โปรดรอผู้ดูแลระบบตรวจสอบสลิป</div>';
         }
         ?>
 
-        <!-- New Payment Form -->
         <div id="add-payment-form" class="bg-white p-6 rounded-lg shadow-md mb-6">
             <h3 class="text-2xl font-semibold mb-4 text-gray-700">ชำระเงินสำหรับการจอง</h3>
-
+            
             <?php if (count($unpaid_reservations) > 0) { ?>
                 <form method="POST" class="space-y-4" enctype="multipart/form-data">
                     <input type="hidden" name="action" value="add_payment">
 
-                    <!-- Reservation -->
                     <div>
                         <label for="reservation_id" class="block text-sm font-medium text-gray-700">เลือกการจอง:</label>
                         <select id="reservation_id" name="reservation_id" required onchange="updateAmount()"
@@ -238,22 +221,21 @@ $conn->close();
                                     <?php
                                         echo "แมว: " . htmlspecialchars($res['cat_name']) .
                                              " | วันที่: " . htmlspecialchars($res['date_from']) .
-                                             " ถึง " . htmlspecialchars($res['date_to']);
+                                             " ถึง " . htmlspecialchars($res['date_to']) .
+                                             " (ราคา: " . number_format($res['total_cost'], 2) . " บาท)";
                                     ?>
                                 </option>
                             <?php } ?>
                         </select>
                     </div>
 
-                    <!-- Amount -->
                     <div>
-                        <label for="amount" class="block text-sm font-medium text-gray-700">จำนวนเงิน:</label>
+                        <label for="amount" class="block text-sm font-medium text-gray-700">จำนวนเงินที่ต้องชำระ:</label>
                         <input type="number" step="0.01" id="amount" name="amount" required readonly
                                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50"
                                placeholder="เช่น 500.00">
                     </div>
 
-                    <!-- Payment Method -->
                     <div>
                         <label for="payment_method" class="block text-sm font-medium text-gray-700">ช่องทางการชำระเงิน:</label>
                         <select id="payment_method" name="payment_method" required
@@ -264,50 +246,31 @@ $conn->close();
                         </select>
                     </div>
 
-                    <!-- Bank Transfer Box -->
-                    <div id="bank-box" class="mt-4 hidden text-center">
-                        <p class="text-sm text-gray-600 mb-2">โอนเข้าบัญชีธนาคาร:</p>
-                        <div class="bg-gray-100 p-4 rounded-lg shadow inline-block text-left">
-                            <p><span class="font-semibold">ธนาคาร:</span> กสิกรไทย</p>
-                            <p><span class="font-semibold">เลขที่บัญชี:</span> 123-4-56789-0</p>
-                            <p><span class="font-semibold">ชื่อบัญชี:</span> นายทดสอบ ระบบ</p>
-                        </div>
-                    </div>
-
-                        <div id="qrcode-box" class="mt-4 text-center">
-                            <p class="text-sm text-gray-600 mb-2">สแกน QR Code เพื่อชำระเงิน:</p>
-                            <div class="flex justify-center mb-2">
-                                <img id="qrcode-img" src="images/qrcode.png" alt="QR Code" class="w-56 h-56 border rounded-lg shadow">
+                    <div id="payment-details-container" class="mt-4 hidden">
+                        <div id="bank-box" class="hidden text-center">
+                            <p class="text-sm text-gray-600 mb-2">โอนเข้าบัญชีธนาคาร:</p>
+                            <div class="bg-gray-100 p-4 rounded-lg shadow inline-block text-left">
+                                <p><span class="font-semibold">ธนาคาร:</span> กสิกรไทย</p>
+                                <p><span class="font-semibold">เลขที่บัญชี:</span> 123-4-56789-0</p>
+                                <p><span class="font-semibold">ชื่อบัญชี:</span> นายทดสอบ ระบบ</p>
                             </div>
-                            <input type="file" id="qrcode-input" accept="images/*" class="mx-auto">
                         </div>
 
-                        <script>
-                            const input = document.getElementById('qrcode-input');
-                            const img = document.getElementById('qrcode-img');
+                        <div id="qrcode-box" class="hidden">
+                            <p class="text-sm text-gray-600 mt-2 mb-2 text-center">สแกน QR Code เพื่อชำระเงิน:</p>
+                            <div class="flex justify-center mb-4">
+                                <img src="images/qrcode.png" alt="QR Code" class="w-56 h-56 border rounded-lg shadow">
+                            </div>
+                        </div>
 
-                            input.addEventListener('change', function() {
-                                const file = this.files[0];
-                                if (file) {
-                                    const reader = new FileReader();
-                                    reader.onload = function(e) {
-                                        img.src = e.target.result;
-                                    }
-                                    reader.readAsDataURL(file);
-                                }
-                            });
-                        </script>
-
-
-                    <!-- Slip Upload -->
-                    <div id="slip-box" class="mt-4 hidden">
-                        <label for="slip" class="block text-sm font-medium text-gray-700">อัปโหลดสลิปการโอน ≤ 5MB!!! :</label>
-                        <input type="file" id="slip" name="slip" accept="image/*" required
-                               class="mt-1 block w-full text-sm text-gray-700 border border-gray-300 rounded-md shadow-sm cursor-pointer focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                        <!-- small preview -->
-                        <div id="slip-preview" class="mt-3 hidden">
-                            <p class="text-sm text-gray-600 mb-2">ตัวอย่างสลิป:</p>
-                            <img id="slip-preview-img" src="#" alt="preview" class="mx-auto w-48 h-auto rounded shadow" />
+                        <div id="slip-box" class="mt-4">
+                            <label for="slip" class="block text-sm font-medium text-gray-700">อัปโหลดสลิปการโอน ≤ 5MB:</label>
+                            <input type="file" id="slip" name="slip" accept="image/*" required
+                                   class="mt-1 block w-full text-sm text-gray-700 border border-gray-300 rounded-md shadow-sm cursor-pointer focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                            <div id="slip-preview" class="mt-3 hidden text-center">
+                                <p class="text-sm text-gray-600 mb-2">ตัวอย่างสลิป:</p>
+                                <img id="slip-preview-img" src="#" alt="preview" class="mx-auto w-48 h-auto rounded shadow" />
+                            </div>
                         </div>
                     </div>
 
@@ -317,14 +280,13 @@ $conn->close();
                     </button>
                 </form>
             <?php } else { ?>
-                <p class="text-gray-500">ไม่มีการจองที่ต้องชำระเงิน</p>
+                <p class="text-gray-500">ไม่มีการจองที่ได้รับการยืนยันและยังไม่ได้ชำระเงิน</p>
+                <p class="text-gray-500">โปรดไปที่หน้า <a href="reservations.php" class="text-indigo-600 hover:underline">การจอง</a> เพื่อตรวจสอบสถานะ</p>
             <?php } ?>
         </div>
 
-        <!-- Payment Records -->
         <div id="payment-records" class="bg-white p-6 rounded-lg shadow-md">
             <h3 class="text-2xl font-semibold mb-4 text-gray-700">ประวัติการชำระเงิน</h3>
-
             <?php if (count($payments) > 0) { ?>
                 <div class="space-y-4">
                     <?php foreach($payments as $payment) { ?>
@@ -357,13 +319,13 @@ $conn->close();
 <script>
     function updateAmount() {
         const selectElement = document.getElementById('reservation_id');
-        const selectedOption = selectElement ? selectElement.options[selectElement.selectedIndex] : null;
-        const totalCost = selectedOption ? selectedOption.getAttribute('data-cost') : 0;
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        const totalCost = selectedOption.getAttribute('data-cost');
         document.getElementById('amount').value = totalCost || 0;
     }
 
-    // Toggle boxes on payment method change
     const paymentSelect = document.getElementById('payment_method');
+    const paymentDetailsContainer = document.getElementById('payment-details-container');
     const bankBox = document.getElementById('bank-box');
     const qrBox = document.getElementById('qrcode-box');
     const slipBox = document.getElementById('slip-box');
@@ -372,22 +334,24 @@ $conn->close();
     const slipPreviewImg = document.getElementById('slip-preview-img');
 
     function togglePaymentBoxes() {
-        const val = paymentSelect ? paymentSelect.value : '';
-        if (val === 'bank_transfer') {
-            bankBox.classList.remove('hidden');
-            qrBox.classList.add('hidden');
+        const val = paymentSelect.value;
+        if (val === 'bank_transfer' || val === 'qrcode') {
+            paymentDetailsContainer.classList.remove('hidden');
             slipBox.classList.remove('hidden');
             slipInput.required = true;
-        } else if (val === 'qrcode') {
-            qrBox.classList.remove('hidden');
-            bankBox.classList.add('hidden');
-            slipBox.classList.remove('hidden');
-            slipInput.required = true;
+            if (val === 'bank_transfer') {
+                bankBox.classList.remove('hidden');
+                qrBox.classList.add('hidden');
+            } else {
+                bankBox.classList.add('hidden');
+                qrBox.classList.remove('hidden');
+            }
         } else {
+            paymentDetailsContainer.classList.add('hidden');
             bankBox.classList.add('hidden');
             qrBox.classList.add('hidden');
             slipBox.classList.add('hidden');
-            if (slipInput) slipInput.required = false;
+            slipInput.required = false;
         }
     }
 
@@ -395,7 +359,6 @@ $conn->close();
         paymentSelect.addEventListener('change', togglePaymentBoxes);
     }
 
-    // Slip preview
     if (slipInput) {
         slipInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
@@ -412,7 +375,6 @@ $conn->close();
         });
     }
 
-    // On page load
     window.addEventListener('load', function () {
         updateAmount();
         togglePaymentBoxes();
