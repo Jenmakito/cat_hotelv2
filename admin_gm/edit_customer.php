@@ -135,7 +135,7 @@ $conn->close();
         <?php else: ?>
         <p style="text-align: center; color: #ff6666;">ไม่พบข้อมูลลูกค้าที่ต้องการแก้ไข</p>
         <?php endif; ?>
-        <a href="../admin_dashboard.php" class="back-link">ย้อนกลับหน้า Dashboard</a>
+        <a href="../admin_dashboard.php" class="back-link">ย้อนกลับหน้า admin mode</a>
     </div>
 </body>
 </html>

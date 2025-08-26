@@ -42,9 +42,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $stmt->bind_param("ssisii", $name, $color, $age, $gender, $user_id, $id);
     
     if ($stmt->execute()) {
-        echo "<script>alert('แก้ไขข้อมูลแมวสำเร็จ'); window.location.href='admin_dashboard.php';</script>";
+        echo "<script>alert('แก้ไขข้อมูลแมวสำเร็จ'); window.location.href='../admin_dashboard.php';</script>";
     } else {
-        echo "<script>alert('เกิดข้อผิดพลาดในการแก้ไขข้อมูล: " . $stmt->error . "'); window.location.href='admin_dashboard.php';</script>";
+        echo "<script>alert('เกิดข้อผิดพลาดในการแก้ไขข้อมูล: " . $stmt->error . "'); window.location.href='../admin_dashboard.php';</script>";
     }
     $stmt->close();
 }
@@ -117,7 +117,7 @@ $conn->close();
         <?php else: ?>
         <p style="text-align: center; color: red;">ไม่พบข้อมูลแมวที่ต้องการแก้ไข</p>
         <?php endif; ?>
-        <a href="../admin_dashboard.php" class="back-link">ย้อนกลับหน้า Dashboard</a>
+        <a href="../admin_dashboard.php" class="back-link">ย้อนกลับหน้า admin mode</a>
     </div>
 </body>
 </html>

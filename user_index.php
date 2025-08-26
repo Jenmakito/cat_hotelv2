@@ -68,7 +68,7 @@ $conn->close();
         <div class="text-xl font-semibold mb-8 text-center">CAT_HOTEL</div>
         <nav>
             <ul>
-                <li class="mb-2"><a href="edit_profile.php" class="block w-full py-2 px-4 rounded-md hover:bg-gray-700">เพิ่มข้อมูลลูกค้า</a></li>
+                <li class="mb-2"><a href="edit_profile.php" class="block w-full py-2 px-4 rounded-md hover:bg-gray-700">เเก้ไขข้อมูลส่วนตัว</a></li>
                 <li class="mb-2"><a href="my_cats.php" class="block w-full py-2 px-4 rounded-md hover:bg-gray-700">จัดการข้อมูลแมว</a></li>
                 <li class="mb-2"><a href="reservations.php" class="block w-full py-2 px-4 rounded-md hover:bg-gray-700">การจอง</a></li>
                 <li class="mb-2"><a href="payments.php" class="block w-full py-2 px-4 rounded-md hover:bg-gray-700">ชำระเงิน</a></li>
