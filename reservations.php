@@ -170,13 +170,6 @@ $conn->close();
                         ค่าใช้จ่ายทั้งหมด: 0 บาท
                     </div>
 
-                    <!-- สถานะการชำระเงิน -->
-                    <div class="flex items-center">
-                        <input id="paid" name="paid" type="checkbox"
-                               class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                        <label for="paid" class="ml-2 block text-sm text-gray-900">ชำระเงินแล้ว</label>
-                    </div>
-
                     <button type="submit"
                             class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
                         ยืนยันการจอง
