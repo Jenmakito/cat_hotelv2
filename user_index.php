@@ -32,14 +32,17 @@ $result = $stmt->get_result();
 $cats = $result->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-// ดึงการจองที่ยังไม่ได้ชำระ
+// --- START FIX ---
+// ดึงการจองที่ยังไม่ได้ชำระ (แก้ไข SQL JOIN และ SELECT)
 $stmt = $conn->prepare("
-    SELECT r.id, c.name AS cat_name, r.date_from, r.date_to, r.room_type, r.total_cost
+    SELECT r.id, c.name AS cat_name, r.date_from, r.date_to, ro.room_type, r.total_cost
     FROM reservations r
     JOIN cats c ON r.cat_id = c.id
+    JOIN rooms ro ON r.room_id = ro.id
     WHERE r.customer_id = ? AND r.paid = 0
     ORDER BY r.date_from ASC
 ");
+// --- END FIX ---
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -63,7 +66,6 @@ $conn->close();
 </head>
 <body class="bg-gray-100 font-sans">
 <div class="flex min-h-screen">
-    <!-- Sidebar -->
     <aside class="w-64 bg-gray-800 text-white p-6 shadow-lg">
         <div class="text-xl font-semibold mb-8 text-center">CAT_HOTEL</div>
         <nav>
@@ -78,11 +80,9 @@ $conn->close();
         </nav>
     </aside>
 
-    <!-- Main Content -->
     <main class="flex-1 p-8">
         <h2 class="text-3xl font-bold mb-6 text-gray-800">ยินดีต้อนรับ, <?php echo htmlspecialchars($_SESSION['username']); ?></h2>
 
-        <!-- ข้อมูลผู้ใช้ -->
         <div class="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
             <h4 class="text-lg font-semibold text-indigo-800 mb-2">ข้อมูลผู้ใช้</h4>
             <ul class="text-indigo-700 space-y-1">
@@ -93,7 +93,6 @@ $conn->close();
             </ul>
         </div>
 
-        <!-- ตารางแมว -->
         <div class="bg-white p-6 rounded-lg shadow-md my-6">
             <h3 class="text-2xl font-semibold mb-4 text-gray-700">ข้อมูลแมวของฉัน</h3>
             <?php if(count($cats) > 0): ?>
@@ -124,7 +123,6 @@ $conn->close();
             <?php endif; ?>
         </div>
 
-        <!-- ตารางการจองที่ยังไม่ได้ชำระ แสดงยอดทันที -->
         <div class="bg-white p-6 rounded-lg shadow-md my-6">
             <h3 class="text-2xl font-semibold mb-4 text-gray-700">การจองที่ยังไม่ได้ชำระ</h3>
             <?php if(count($unpaid_reservations) > 0): ?>

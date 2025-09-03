@@ -33,27 +33,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $amount = isset($_POST['amount']) ? (float)$_POST['amount'] : 0.0;
     $payment_method = isset($_POST['payment_method']) ? $_POST['payment_method'] : '';
 
-    // Require a valid reservation
-    if (!$reservation_id) {
-        $error = "กรุณาเลือกการจองที่ต้องชำระเงิน";
-    } elseif ($amount <= 0) {
-        $error = "จำนวนเงินไม่ถูกต้อง";
-    } elseif (!in_array($payment_method, ['bank_transfer', 'qrcode'])) {
-        $error = "วิธีชำระเงินไม่ถูกต้อง";
-    } elseif (!isset($_FILES['slip']) || $_FILES['slip']['error'] !== UPLOAD_ERR_OK) {
-        $error = "กรุณาอัปโหลดสลิปการโอนเงิน";
-    }
+    if (!$reservation_id) { $error = "กรุณาเลือกการจองที่ต้องชำระเงิน"; }
+    elseif ($amount <= 0) { $error = "จำนวนเงินไม่ถูกต้อง"; }
+    elseif (!in_array($payment_method, ['bank_transfer', 'qrcode'])) { $error = "วิธีชำระเงินไม่ถูกต้อง"; }
+    elseif (!isset($_FILES['slip']) || $_FILES['slip']['error'] !== UPLOAD_ERR_OK) { $error = "กรุณาอัปโหลดสลิปการโอนเงิน"; }
 
-    // Validate the reservation belongs to this user, is confirmed, and is unpaid
+    // ** [สำคัญ] แก้ไข query ให้ตรวจสอบ status เป็น 'pending' **
     if (!$error) {
-        $stmt = $conn->prepare("SELECT total_cost FROM reservations WHERE id = ? AND customer_id = ? AND paid = 0 AND status = 'confirmed'");
+        $stmt = $conn->prepare("SELECT total_cost FROM reservations WHERE id = ? AND customer_id = ? AND paid = 0 AND status = 'pending'");
         $stmt->bind_param("ii", $reservation_id, $user_id);
         $stmt->execute();
         $res_check = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
         if (!$res_check) {
-            $error = "ไม่พบการจองที่เลือก, หรือสถานะยังไม่ได้รับการยืนยัน, หรือชำระแล้ว";
+            $error = "ไม่พบการจองที่เลือก, หรือสถานะไม่ใช่ 'รอชำระเงิน', หรือชำระแล้ว";
         } else {
             $expected = (float)$res_check['total_cost'];
             if (abs($expected - $amount) > 0.01) {
@@ -67,30 +61,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     if (!$error) {
         $uploadDir = __DIR__ . "/uploads/";
         $publicDir = "uploads/";
-
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
-        }
-
+        if (!is_dir($uploadDir)) { mkdir($uploadDir, 0777, true); }
         $finfo = new finfo(FILEINFO_MIME_TYPE);
         $mime = $finfo->file($_FILES['slip']['tmp_name']);
         $allowed_mime = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
-        if (!isset($allowed_mime[$mime])) {
-            $error = "อนุญาตเฉพาะไฟล์รูปภาพ JPG/PNG/WebP เท่านั้น";
-        }
-
-        if (!$error) {
-            $maxSize = 5 * 1024 * 1024;
-            if ($_FILES['slip']['size'] > $maxSize) {
-                $error = "ขนาดไฟล์ใหญ่เกินกำหนด (สูงสุด 5MB)";
-            }
-        }
-
+        if (!isset($allowed_mime[$mime])) { $error = "อนุญาตเฉพาะไฟล์รูปภาพ JPG/PNG/WebP เท่านั้น"; }
+        if (!$error && $_FILES['slip']['size'] > 5 * 1024 * 1024) { $error = "ขนาดไฟล์ใหญ่เกินกำหนด (สูงสุด 5MB)";}
         if (!$error) {
             $ext = $allowed_mime[$mime];
             $safeName = "slip_" . $user_id . "_" . $reservation_id . "_" . time() . "_" . mt_rand(1000, 9999) . "." . $ext;
             $dest = $uploadDir . $safeName;
-
             if (!move_uploaded_file($_FILES['slip']['tmp_name'], $dest)) {
                 $error = "อัปโหลดไฟล์ล้มเหลว";
             } else {
@@ -103,57 +83,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     if (!$error) {
         $conn->begin_transaction();
         try {
-            // Mark reservation as paid
-            $stmt = $conn->prepare("UPDATE reservations SET paid = 1 WHERE id = ? AND customer_id = ?");
+            // ** [สำคัญ] อัปเดต status เป็น 'pending_approval' **
+            $stmt = $conn->prepare("UPDATE reservations SET paid = 1, status = 'pending_approval' WHERE id = ? AND customer_id = ?");
             $stmt->bind_param("ii", $reservation_id, $user_id);
             $stmt->execute();
             $stmt->close();
 
-            // Insert payment with slip_path
-            $stmt = $conn->prepare("INSERT INTO payments (customer_id, reservation_id, amount, payment_method, slip_path) VALUES (?, ?, ?, ?, ?)");
+            $stmt = $conn->prepare("INSERT INTO payments (customer_id, reservation_id, amount, payment_method, slip_path, status) VALUES (?, ?, ?, ?, ?, 'pending_approval')");
             $stmt->bind_param("iidss", $user_id, $reservation_id, $amount, $payment_method, $saved_path);
             $stmt->execute();
             $stmt->close();
-
-            // **NEW: Fetch the checkin_code after successful payment**
-            $stmt = $conn->prepare("SELECT checkin_code FROM reservations WHERE id = ?");
-            $stmt->bind_param("i", $reservation_id);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $reservation = $result->fetch_assoc();
-            $checkin_code = $reservation['checkin_code'];
-            $stmt->close();
-
+            
             $conn->commit();
-            
-            // Set success message with the checkin code
-            $_SESSION['payment_success'] = "ชำระเงินเรียบร้อยแล้ว! 🥳 รหัสเช็คอินของคุณคือ: <span class='font-bold text-green-700'>" . htmlspecialchars($checkin_code) . "</span>";
-            
+            $_SESSION['payment_success'] = "การชำระเงินของคุณถูกส่งเรียบร้อยแล้ว ✅ กรุณารอการตรวจสอบจากผู้ดูแลระบบ";
             header("Location: payments.php");
             exit();
 
         } catch (mysqli_sql_exception $e) {
             $conn->rollback();
-            if ($saved_path && file_exists(__DIR__ . '/' . $saved_path)) {
-                @unlink(__DIR__ . '/' . $saved_path);
-            }
+            if ($saved_path && file_exists(__DIR__ . '/' . $saved_path)) { @unlink(__DIR__ . '/' . $saved_path); }
             $error = "เกิดข้อผิดพลาดในการชำระเงิน: " . $e->getMessage();
         }
     }
 }
 
-// Check for success message in session after redirect
 if (isset($_SESSION['payment_success'])) {
     $success = $_SESSION['payment_success'];
-    unset($_SESSION['payment_success']); // Clear the message after displaying
+    unset($_SESSION['payment_success']);
 }
 
-// Fetch confirmed and unpaid reservations for the current user
+// ** [สำคัญ] แก้ไข query ให้ดึงการจองที่ status เป็น 'pending' **
 $stmt = $conn->prepare("
     SELECT r.id, r.total_cost, r.date_from, r.date_to, c.name as cat_name
     FROM reservations r
     JOIN cats c ON r.cat_id = c.id
-    WHERE r.customer_id = ? AND r.paid = 0 AND r.status = 'confirmed'
+    WHERE r.customer_id = ? AND r.paid = 0 AND r.status = 'pending'
     ORDER BY r.date_from DESC
 ");
 $stmt->bind_param("i", $user_id);
@@ -178,7 +142,6 @@ $payments = $result->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 $conn->close();
 ?>
-
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -200,7 +163,7 @@ $conn->close();
                 <li class="mb-2"><a href="user_index.php" class="block w-full text-left py-2 px-4 rounded-md hover:bg-gray-700 transition-colors duration-200">หน้าหลัก</a></li>
                 <li class="mb-2"><a href="my_cats.php" class="block w-full text-left py-2 px-4 rounded-md hover:bg-gray-700 transition-colors duration-200">จัดการข้อมูลเเมว</a></li>
                 <li class="mb-2"><a href="reservations.php" class="block w-full text-left py-2 px-4 rounded-md hover:bg-gray-700 transition-colors duration-200">การจอง</a></li>
-                <li class="mb-2"><a href="user_reservations.php" class="block w-full py-2 px-4 rounded-md hover:bg-gray-700">เช็คอินเข้าพัก</a></li>
+                <li class="mb-2"><a href="user_reservations.php" class="block w-full text-left py-2 px-4 rounded-md hover:bg-gray-700">เช็คอินเข้าพัก</a></li>
                 <li class="mb-2"><a href="payments.php" class="block w-full text-left py-2 px-4 rounded-md bg-gray-700 transition-colors duration-200">ชำระเงิน</a></li>
                 <li class="mt-8"><a href="logout.php" class="block py-2 px-4 rounded-md bg-red-600 hover:bg-red-700 transition-colors duration-200 text-center">ออกจากระบบ</a></li>
             </ul>
@@ -298,7 +261,7 @@ $conn->close();
                     </button>
                 </form>
             <?php else: ?>
-                <p class="text-gray-500">ไม่มีการจองที่ได้รับการยืนยันและยังไม่ได้ชำระเงิน</p>
+                <p class="text-gray-500">ไม่มีการจองที่ต้องชำระเงิน</p>
                 <p class="text-gray-500">โปรดไปที่หน้า <a href="reservations.php" class="text-indigo-600 hover:underline">การจอง</a> เพื่อตรวจสอบสถานะ</p>
             <?php endif; ?>
         </div>

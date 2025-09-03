@@ -19,6 +19,18 @@ $stmt->bind_param("s", $_SESSION['username']);
 $stmt->execute();
 $result = $stmt->get_result();
 $user = $result->fetch_assoc();
+
+// --- START FIX ---
+// ตรวจสอบว่าผู้ใช้มีอยู่จริงหรือไม่ ถ้าไม่มี แสดงว่าเซสชันไม่ถูกต้อง
+if (!$user) {
+    // ทำลายเซสชันเก่าและส่งกลับไปหน้าล็อกอิน
+    session_unset();
+    session_destroy();
+    header("Location: login.php?message=Invalid session. Please log in again.");
+    exit();
+}
+// --- END FIX ---
+
 $user_id = $user['id'];
 $stmt->close();
 
@@ -30,7 +42,7 @@ $result = $stmt->get_result();
 $cats = $result->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-// **เพิ่มส่วนนี้: ฟังก์ชันสำหรับสร้างรหัสเช็คอิน 6 หลัก**
+// ฟังก์ชันสำหรับสร้างรหัสเช็คอิน 6 หลัก
 function generateCheckinCode($length = 6) {
     $characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     $code = '';
@@ -50,36 +62,23 @@ if (isset($_POST['action'])) {
         $total_cost = (float)$_POST['total_cost'];
         
         // สถานะเริ่มต้นของการจอง
-        $paid = 0; // การจองใหม่ยังไม่ได้ชำระเงิน
-        $status = 'pending';
+        $paid = 0;
+        $status = 'pending'; // สถานะเริ่มต้นคือ 'pending'
 
         if ($cat_id == 0 || $room_id == 0) {
             $error = "กรุณาเลือกแมวและห้องสำหรับการจอง";
         } else {
-            // ดึงประเภทห้องจาก room_id ที่ผู้ใช้เลือก
-            $stmt = $conn->prepare("SELECT room_type FROM rooms WHERE id = ?");
-            $stmt->bind_param("i", $room_id);
-            $stmt->execute();
-            $room_data = $stmt->get_result()->fetch_assoc();
-            $room_type = $room_data['room_type'];
-            $stmt->close();
-
-            // **เพิ่มส่วนนี้: สร้างรหัสเช็คอิน**
             $checkin_code = generateCheckinCode();
 
-            // **แก้ไขคำสั่ง SQL: เพิ่ม checkin_code และ status**
-            $stmt = $conn->prepare("INSERT INTO reservations (customer_id, cat_id, room_id, date_from, date_to, room_type, total_cost, paid, checkin_code, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("iiissisiss", $user_id, $cat_id, $room_id, $date_from, $date_to, $room_type, $total_cost, $paid, $checkin_code, $status);
-            
+            // --- START FIX ---
+            // แก้ไข SQL ให้ถูกต้อง: ลบ room_type ออกจากคำสั่ง INSERT
+            $stmt = $conn->prepare("INSERT INTO reservations (customer_id, cat_id, room_id, date_from, date_to, total_cost, paid, checkin_code, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            // แก้ไข bind_param ให้สอดคล้องกับจำนวน parameter และ data type ที่ถูกต้อง
+            $stmt->bind_param("iiissdiss", $user_id, $cat_id, $room_id, $date_from, $date_to, $total_cost, $paid, $checkin_code, $status);
+            // --- END FIX ---
+
             if ($stmt->execute()) {
-                // **แก้ไขข้อความแจ้งเตือน**
-                $success = "จองห้องเรียบร้อยแล้ว! กรุณาไปที่หน้าชำระเงินเพื่อดำเนินการต่อและรับรหัสเช็คอินของคุณ";
-                
-                // อัปเดตสถานะห้องในตาราง rooms เป็น 'occupied'
-                $update_stmt = $conn->prepare("UPDATE rooms SET status = 'occupied' WHERE id = ?");
-                $update_stmt->bind_param("i", $room_id);
-                $update_stmt->execute();
-                $update_stmt->close();
+                $success = "จองห้องเรียบร้อยแล้ว! กรุณาไปที่หน้าชำระเงินเพื่อดำเนินการต่อ";
             } else {
                 $error = "เกิดข้อผิดพลาดในการจองห้อง";
             }
@@ -88,33 +87,36 @@ if (isset($_POST['action'])) {
     } elseif ($_POST['action'] === 'delete_reservation') {
         $reservation_id = (int)$_POST['reservation_id'];
 
-        // ดึง room_id ก่อนทำการลบการจอง
-        $stmt = $conn->prepare("SELECT room_id FROM reservations WHERE id = ? AND customer_id = ?");
+        $stmt = $conn->prepare("SELECT room_id, status FROM reservations WHERE id = ? AND customer_id = ?");
         $stmt->bind_param("ii", $reservation_id, $user_id);
         $stmt->execute();
         $result = $stmt->get_result();
         $reservation_data = $result->fetch_assoc();
-        $room_id = $reservation_data['room_id'];
-        $stmt->close();
+        
+        if ($reservation_data) {
+            $room_id = $reservation_data['room_id'];
+            $res_status = $reservation_data['status'];
+            $stmt->close();
 
-        // ลบการจอง
-        $stmt = $conn->prepare("DELETE FROM reservations WHERE id = ? AND customer_id = ?");
-        $stmt->bind_param("ii", $reservation_id, $user_id);
-        if ($stmt->execute()) {
-            if ($stmt->affected_rows > 0) {
+            // ลบการจอง
+            $stmt_delete = $conn->prepare("DELETE FROM reservations WHERE id = ? AND customer_id = ?");
+            $stmt_delete->bind_param("ii", $reservation_id, $user_id);
+            if ($stmt_delete->execute()) {
                 $success = "การจองถูกยกเลิกเรียบร้อยแล้ว!";
-                // อัปเดตสถานะห้องในตาราง rooms กลับเป็น 'available'
-                $update_stmt = $conn->prepare("UPDATE rooms SET status = 'available' WHERE id = ?");
-                $update_stmt->bind_param("i", $room_id);
-                $update_stmt->execute();
-                $update_stmt->close();
+                // อัปเดตสถานะห้องกลับเป็น 'available' เฉพาะเมื่อการจองได้รับการยืนยันแล้วเท่านั้น
+                if ($res_status == 'confirmed') {
+                    $update_stmt = $conn->prepare("UPDATE rooms SET status = 'available' WHERE id = ?");
+                    $update_stmt->bind_param("i", $room_id);
+                    $update_stmt->execute();
+                    $update_stmt->close();
+                }
             } else {
-                $error = "ไม่พบการจองที่ต้องการยกเลิกหรือคุณไม่มีสิทธิ์ลบการจองนี้";
+                $error = "เกิดข้อผิดพลาดในการยกเลิกการจอง";
             }
+            $stmt_delete->close();
         } else {
-            $error = "เกิดข้อผิดพลาดในการยกเลิกการจอง";
+            $error = "ไม่พบการจองที่ต้องการยกเลิก";
         }
-        $stmt->close();
     }
 }
 
@@ -124,7 +126,6 @@ $stmt->execute();
 $rooms = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-// **แก้ไขคำสั่ง SQL: ดึงข้อมูล checkin_code มาแสดงด้วย**
 $stmt = $conn->prepare("SELECT r.*, c.name as cat_name, ro.room_number, ro.room_type FROM reservations r JOIN cats c ON r.cat_id = c.id JOIN rooms ro ON r.room_id = ro.id WHERE r.customer_id = ? ORDER BY r.date_from DESC");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
