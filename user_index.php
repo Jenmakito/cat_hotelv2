@@ -71,6 +71,7 @@ $conn->close();
                 <li class="mb-2"><a href="edit_profile.php" class="block w-full py-2 px-4 rounded-md hover:bg-gray-700">เเก้ไขข้อมูลส่วนตัว</a></li>
                 <li class="mb-2"><a href="my_cats.php" class="block w-full py-2 px-4 rounded-md hover:bg-gray-700">จัดการข้อมูลแมว</a></li>
                 <li class="mb-2"><a href="reservations.php" class="block w-full py-2 px-4 rounded-md hover:bg-gray-700">การจอง</a></li>
+                <li class="mb-2"><a href="user_reservations.php" class="block w-full py-2 px-4 rounded-md hover:bg-gray-700">เช็คอินเข้าพัก</a></li>
                 <li class="mb-2"><a href="payments.php" class="block w-full py-2 px-4 rounded-md hover:bg-gray-700">ชำระเงิน</a></li>
                 <li class="mt-8"><a href="logout.php" class="block py-2 px-4 rounded-md bg-red-600 hover:bg-red-700 text-center">ออกจากระบบ</a></li>
             </ul>

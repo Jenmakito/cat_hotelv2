@@ -14,7 +14,7 @@ $error = '';
 $success = '';
 
 // Fetch user ID and related data
-$stmt = $conn->prepare("SELECT id FROM users WHERE username=?");
+$stmt = $conn->prepare("SELECT id FROM users WHERE username = ?");
 $stmt->bind_param("s", $_SESSION['username']);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -25,20 +25,6 @@ $stmt->close();
 if (!$user_id) {
     die("ไม่พบผู้ใช้");
 }
-
-// Fetch confirmed and unpaid reservations for the current user
-$stmt = $conn->prepare("
-    SELECT r.id, r.total_cost, r.date_from, r.date_to, c.name as cat_name
-    FROM reservations r
-    JOIN cats c ON r.cat_id = c.id
-    WHERE r.customer_id = ? AND r.paid = 0 AND r.status = 'confirmed'
-    ORDER BY r.date_from DESC
-");
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$result = $stmt->get_result();
-$unpaid_reservations = $result->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
 
 // Handle new payment submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_payment') {
@@ -60,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     // Validate the reservation belongs to this user, is confirmed, and is unpaid
     if (!$error) {
-        $stmt = $conn->prepare("SELECT total_cost FROM reservations WHERE id=? AND customer_id=? AND paid=0 AND status='confirmed'");
+        $stmt = $conn->prepare("SELECT total_cost FROM reservations WHERE id = ? AND customer_id = ? AND paid = 0 AND status = 'confirmed'");
         $stmt->bind_param("ii", $reservation_id, $user_id);
         $stmt->execute();
         $res_check = $stmt->get_result()->fetch_assoc();
@@ -70,7 +56,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $error = "ไม่พบการจองที่เลือก, หรือสถานะยังไม่ได้รับการยืนยัน, หรือชำระแล้ว";
         } else {
             $expected = (float)$res_check['total_cost'];
-            // Use a small tolerance for floating point comparison
             if (abs($expected - $amount) > 0.01) {
                 $error = "จำนวนเงินไม่ตรงกับยอดที่ต้องชำระ";
             }
@@ -81,14 +66,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $saved_path = '';
     if (!$error) {
         $uploadDir = __DIR__ . "/uploads/";
-        $publicDir = "uploads/"; // path saved to DB and used for display
+        $publicDir = "uploads/";
 
-        // Ensure upload directory exists and is writable
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0777, true);
         }
 
-        // MIME check
         $finfo = new finfo(FILEINFO_MIME_TYPE);
         $mime = $finfo->file($_FILES['slip']['tmp_name']);
         $allowed_mime = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
@@ -96,7 +79,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $error = "อนุญาตเฉพาะไฟล์รูปภาพ JPG/PNG/WebP เท่านั้น";
         }
 
-        // Size limit 5MB
         if (!$error) {
             $maxSize = 5 * 1024 * 1024;
             if ($_FILES['slip']['size'] > $maxSize) {
@@ -106,8 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         if (!$error) {
             $ext = $allowed_mime[$mime];
-            // Create a unique filename to avoid overwrites
-            $safeName = "slip_" . $user_id . "_" . $reservation_id . "_" . time() . "_" . mt_rand(1000,9999) . "." . $ext;
+            $safeName = "slip_" . $user_id . "_" . $reservation_id . "_" . time() . "_" . mt_rand(1000, 9999) . "." . $ext;
             $dest = $uploadDir . $safeName;
 
             if (!move_uploaded_file($_FILES['slip']['tmp_name'], $dest)) {
@@ -134,9 +115,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $stmt->execute();
             $stmt->close();
 
+            // **NEW: Fetch the checkin_code after successful payment**
+            $stmt = $conn->prepare("SELECT checkin_code FROM reservations WHERE id = ?");
+            $stmt->bind_param("i", $reservation_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $reservation = $result->fetch_assoc();
+            $checkin_code = $reservation['checkin_code'];
+            $stmt->close();
+
             $conn->commit();
-            header("Location: payments.php?success=1");
+            
+            // Set success message with the checkin code
+            $_SESSION['payment_success'] = "ชำระเงินเรียบร้อยแล้ว! 🥳 รหัสเช็คอินของคุณคือ: <span class='font-bold text-green-700'>" . htmlspecialchars($checkin_code) . "</span>";
+            
+            header("Location: payments.php");
             exit();
+
         } catch (mysqli_sql_exception $e) {
             $conn->rollback();
             if ($saved_path && file_exists(__DIR__ . '/' . $saved_path)) {
@@ -146,6 +141,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     }
 }
+
+// Check for success message in session after redirect
+if (isset($_SESSION['payment_success'])) {
+    $success = $_SESSION['payment_success'];
+    unset($_SESSION['payment_success']); // Clear the message after displaying
+}
+
+// Fetch confirmed and unpaid reservations for the current user
+$stmt = $conn->prepare("
+    SELECT r.id, r.total_cost, r.date_from, r.date_to, c.name as cat_name
+    FROM reservations r
+    JOIN cats c ON r.cat_id = c.id
+    WHERE r.customer_id = ? AND r.paid = 0 AND r.status = 'confirmed'
+    ORDER BY r.date_from DESC
+");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$unpaid_reservations = $result->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
 
 // Fetch all payment records for the user
 $stmt = $conn->prepare("
@@ -163,6 +178,7 @@ $payments = $result->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 $conn->close();
 ?>
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -184,6 +200,7 @@ $conn->close();
                 <li class="mb-2"><a href="user_index.php" class="block w-full text-left py-2 px-4 rounded-md hover:bg-gray-700 transition-colors duration-200">หน้าหลัก</a></li>
                 <li class="mb-2"><a href="my_cats.php" class="block w-full text-left py-2 px-4 rounded-md hover:bg-gray-700 transition-colors duration-200">จัดการข้อมูลเเมว</a></li>
                 <li class="mb-2"><a href="reservations.php" class="block w-full text-left py-2 px-4 rounded-md hover:bg-gray-700 transition-colors duration-200">การจอง</a></li>
+                <li class="mb-2"><a href="user_reservations.php" class="block w-full py-2 px-4 rounded-md hover:bg-gray-700">เช็คอินเข้าพัก</a></li>
                 <li class="mb-2"><a href="payments.php" class="block w-full text-left py-2 px-4 rounded-md bg-gray-700 transition-colors duration-200">ชำระเงิน</a></li>
                 <li class="mt-8"><a href="logout.php" class="block py-2 px-4 rounded-md bg-red-600 hover:bg-red-700 transition-colors duration-200 text-center">ออกจากระบบ</a></li>
             </ul>
@@ -193,21 +210,22 @@ $conn->close();
     <main class="flex-1 p-8">
         <h2 class="text-3xl font-bold mb-6 text-gray-800">การชำระเงินของฉัน</h2>
 
-        <?php
-        if (!empty($error)) {
-            echo '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">'
-                 . htmlspecialchars($error) .
-                 '</div>';
-        }
-        if (isset($_GET['success']) && $_GET['success'] == 1) {
-            echo '<div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">ชำระเงินเรียบร้อยแล้ว! โปรดรอผู้ดูแลระบบตรวจสอบสลิป</div>';
-        }
-        ?>
+        <?php if (!empty($error)): ?>
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                <span class="block sm:inline"><?php echo htmlspecialchars($error); ?></span>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!empty($success)): ?>
+            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
+                <span class="block sm:inline"><?php echo $success; ?></span>
+            </div>
+        <?php endif; ?>
 
         <div id="add-payment-form" class="bg-white p-6 rounded-lg shadow-md mb-6">
             <h3 class="text-2xl font-semibold mb-4 text-gray-700">ชำระเงินสำหรับการจอง</h3>
             
-            <?php if (count($unpaid_reservations) > 0) { ?>
+            <?php if (count($unpaid_reservations) > 0): ?>
                 <form method="POST" class="space-y-4" enctype="multipart/form-data">
                     <input type="hidden" name="action" value="add_payment">
 
@@ -216,7 +234,7 @@ $conn->close();
                         <select id="reservation_id" name="reservation_id" required onchange="updateAmount()"
                                 class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                             <option value="0" data-cost="0">--- เลือกการจองที่ยังไม่ได้ชำระ ---</option>
-                            <?php foreach($unpaid_reservations as $res) { ?>
+                            <?php foreach($unpaid_reservations as $res): ?>
                                 <option value="<?php echo (int)$res['id']; ?>" data-cost="<?php echo htmlspecialchars($res['total_cost']); ?>">
                                     <?php
                                         echo "แมว: " . htmlspecialchars($res['cat_name']) .
@@ -225,15 +243,15 @@ $conn->close();
                                              " (ราคา: " . number_format($res['total_cost'], 2) . " บาท)";
                                     ?>
                                 </option>
-                            <?php } ?>
+                            <?php endforeach; ?>
                         </select>
                     </div>
 
                     <div>
                         <label for="amount" class="block text-sm font-medium text-gray-700">จำนวนเงินที่ต้องชำระ:</label>
                         <input type="number" step="0.01" id="amount" name="amount" required readonly
-                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50"
-                               placeholder="เช่น 500.00">
+                                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50"
+                                placeholder="เช่น 500.00">
                     </div>
 
                     <div>
@@ -266,7 +284,7 @@ $conn->close();
                         <div id="slip-box" class="mt-4">
                             <label for="slip" class="block text-sm font-medium text-gray-700">อัปโหลดสลิปการโอน ≤ 5MB:</label>
                             <input type="file" id="slip" name="slip" accept="image/*" required
-                                   class="mt-1 block w-full text-sm text-gray-700 border border-gray-300 rounded-md shadow-sm cursor-pointer focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                                    class="mt-1 block w-full text-sm text-gray-700 border border-gray-300 rounded-md shadow-sm cursor-pointer focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                             <div id="slip-preview" class="mt-3 hidden text-center">
                                 <p class="text-sm text-gray-600 mb-2">ตัวอย่างสลิป:</p>
                                 <img id="slip-preview-img" src="#" alt="preview" class="mx-auto w-48 h-auto rounded shadow" />
@@ -279,17 +297,17 @@ $conn->close();
                         ยืนยันการชำระเงิน
                     </button>
                 </form>
-            <?php } else { ?>
+            <?php else: ?>
                 <p class="text-gray-500">ไม่มีการจองที่ได้รับการยืนยันและยังไม่ได้ชำระเงิน</p>
                 <p class="text-gray-500">โปรดไปที่หน้า <a href="reservations.php" class="text-indigo-600 hover:underline">การจอง</a> เพื่อตรวจสอบสถานะ</p>
-            <?php } ?>
+            <?php endif; ?>
         </div>
 
         <div id="payment-records" class="bg-white p-6 rounded-lg shadow-md">
             <h3 class="text-2xl font-semibold mb-4 text-gray-700">ประวัติการชำระเงิน</h3>
-            <?php if (count($payments) > 0) { ?>
+            <?php if (count($payments) > 0): ?>
                 <div class="space-y-4">
-                    <?php foreach($payments as $payment) { ?>
+                    <?php foreach($payments as $payment): ?>
                         <div class="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
                             <h5 class="text-lg font-semibold text-indigo-800 mb-2">
                                 การจอง: <?php echo htmlspecialchars($payment['cat_name']); ?>
@@ -299,19 +317,19 @@ $conn->close();
                                 <li><span class="font-medium">วันที่ชำระ:</span> <?php echo htmlspecialchars($payment['payment_date']); ?></li>
                                 <li><span class="font-medium">วิธีการชำระ:</span> <?php echo htmlspecialchars($payment['payment_method']); ?></li>
                                 <li><span class="font-medium">สำหรับวันที่:</span> <?php echo htmlspecialchars($payment['date_from']); ?> ถึง <?php echo htmlspecialchars($payment['date_to']); ?></li>
-                                <?php if (!empty($payment['slip_path'])) { ?>
+                                <?php if (!empty($payment['slip_path'])): ?>
                                     <li>
                                         <span class="font-medium">สลิป:</span>
                                         <a href="<?php echo htmlspecialchars($payment['slip_path']); ?>" target="_blank" class="text-blue-600 underline">ดูสลิป</a>
                                     </li>
-                                <?php } ?>
+                                <?php endif; ?>
                             </ul>
                         </div>
-                    <?php } ?>
+                    <?php endforeach; ?>
                 </div>
-            <?php } else { ?>
+            <?php else: ?>
                 <p class="text-gray-500">คุณยังไม่มีประวัติการชำระเงิน</p>
-            <?php } ?>
+            <?php endif; ?>
         </div>
     </main>
 </div>
