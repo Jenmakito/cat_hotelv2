@@ -160,7 +160,7 @@ $conn->close();
 <h2>สวัสดี <?php echo htmlspecialchars($_SESSION['username']); ?> (Admin)</h2>
 <p>Admin mode ของผู้ดูแลระบบ</p>
 <a href="logout.php">ออกจากระบบ</a>
-<a href="admin_add_room.php" class="approve" style="margin-left: 10px;">เพิ่มห้องพักใหม่</a>
+<a href="admin_gm/admin_add_room.php" class="approve" style="margin-left: 10px;">เพิ่มห้องพักใหม่</a>
 <hr>
 
 <div class="dashboard-container">
