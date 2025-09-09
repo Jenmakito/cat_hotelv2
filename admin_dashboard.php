@@ -146,6 +146,7 @@ $conn->close();
     .checkin { background-color:#2196f3; } .checkin:hover { background-color:#1e88e5; }
     .checkout { background-color:#ff9800; } .checkout:hover { background-color:#fb8c00; }
     .delete { background-color:#607d8b; } .delete:hover { background-color:#455a64; }
+    .history { background-color: #9c27b0; } .history:hover { background-color: #8e24aa; }
     .status-badge {
         padding:3px 6px; border-radius:4px; color:white;
         font-size:0.85em; font-weight:bold;
@@ -178,6 +179,7 @@ $conn->close();
                         <td class="actions">
                             <a href="admin_gm/edit_customer.php?id=<?php echo $c['id']; ?>" class="approve">แก้ไข</a>
                             <a href="admin_gm/delete_customer.php?id=<?php echo $c['id']; ?>" class="delete" onclick="return confirm('คุณต้องการลบข้อมูลลูกค้ารายนี้หรือไม่?');">ลบ</a>
+                            <a href="admin_gm/customer_history.php?customer_name=<?php echo urlencode($c['username']); ?>" class="history">ดูประวัติ</a>
                         </td>
                     </tr>
                 <?php endforeach; else: ?>
@@ -249,7 +251,7 @@ $conn->close();
                             <?php 
                                 $status = $res['status'] ?? 'pending';
                                 $labels = ['pending'=>'รอชำระเงิน','pending_approval'=>'รออนุมัติ','confirmed'=>'ยืนยันแล้ว','cancelled'=>'ยกเลิก'];
-                                echo "<span class='status-badge {$status}'>".($labels[$status] ?? 'ไม่ทราบ')."</span>";
+                                echo "<span class='status-badge {$status}'>".($labels[$status] ?? '')."</span>";
                                 
                                 if($res['check_in'] && !$res['check_out']) {
                                     echo "<br><span class='status-badge checkin'>เข้าพักแล้ว</span>";
@@ -278,7 +280,7 @@ $conn->close();
                             <?php elseif($res['status']==='confirmed' && !$res['check_in']): ?>
                                 <a href="admin_gm/admin_checkin.php?reservation_id=<?php echo $res['id']; ?>&room_id=<?php echo $res['room_id']; ?>" class="checkin">เช็คอิน</a>
                             <?php elseif($res['check_in'] && !$res['check_out']): ?>
-                                <a href="admin_checkout.php?reservation_id=<?php echo $res['id']; ?>&room_id=<?php echo $res['room_id']; ?>" class="checkout">เช็คเอาท์</a>
+                                <a href="admin_gm/admin_checkout.php?reservation_id=<?php echo $res['id']; ?>&room_id=<?php echo $res['room_id']; ?>" class="checkout">เช็คเอาท์</a>
                             <?php endif; ?>
                             <a href="admin_gm/delete_reservation.php?id=<?php echo $res['id']; ?>" class="delete" onclick="return confirm('คุณต้องการลบข้อมูลการจองนี้หรือไม่?');">ลบ</a>
                         </td>

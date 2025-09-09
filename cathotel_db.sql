@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 03, 2025 at 07:11 AM
+-- Generation Time: Sep 09, 2025 at 06:01 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -41,8 +41,8 @@ CREATE TABLE `cats` (
 --
 
 INSERT INTO `cats` (`id`, `user_id`, `name`, `color`, `age`, `gender`) VALUES
-(27, 3, 'moo ping', 'ดำ', 3, 'male'),
-(28, 7, 'free', 'black', 4, 'female');
+(29, 3, 'เมี้ยวๆ', 'ขาว', 2, 'male'),
+(30, 9, 'meoww', 'dam', 2, 'female');
 
 -- --------------------------------------------------------
 
@@ -60,14 +60,6 @@ CREATE TABLE `payments` (
   `payment_date` timestamp NOT NULL DEFAULT current_timestamp(),
   `status` enum('pending_approval','approved','rejected') NOT NULL DEFAULT 'pending_approval'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `payments`
---
-
-INSERT INTO `payments` (`id`, `reservation_id`, `customer_id`, `amount`, `payment_method`, `slip_path`, `payment_date`, `status`) VALUES
-(9, 22, 7, 1200.00, 'qrcode', 'uploads/slip_7_22_1756241281_5794.jpg', '2025-08-26 20:48:01', 'approved'),
-(10, 23, 3, 2100.00, 'bank_transfer', 'uploads/slip_3_23_1756876163_7450.jpg', '2025-09-03 05:09:23', 'pending_approval');
 
 -- --------------------------------------------------------
 
@@ -87,16 +79,10 @@ CREATE TABLE `reservations` (
   `status` enum('pending','pending_approval','confirmed','cancelled','completed') NOT NULL DEFAULT 'pending',
   `checkin_code` varchar(10) DEFAULT NULL,
   `check_in` tinyint(1) NOT NULL DEFAULT 0,
-  `check_out` tinyint(1) NOT NULL DEFAULT 0
+  `check_out` tinyint(1) NOT NULL DEFAULT 0,
+  `customer_name` varchar(255) NOT NULL,
+  `cat_name` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `reservations`
---
-
-INSERT INTO `reservations` (`id`, `customer_id`, `cat_id`, `room_id`, `date_from`, `date_to`, `total_cost`, `paid`, `status`, `checkin_code`, `check_in`, `check_out`) VALUES
-(22, 7, 28, 4, '2025-08-29', '2025-09-01', 1200.00, 1, 'confirmed', 'G7H8I9', 0, 0),
-(23, 3, 27, 1, '2025-09-04', '2025-09-18', 2100.00, 1, 'confirmed', '0DM12B', 0, 0);
 
 -- --------------------------------------------------------
 
@@ -116,11 +102,15 @@ CREATE TABLE `rooms` (
 --
 
 INSERT INTO `rooms` (`id`, `room_number`, `room_type`, `status`) VALUES
-(1, 'S01', 'standard', 'occupied'),
+(1, 'S01', 'standard', 'available'),
 (2, 'S02', 'standard', 'available'),
 (3, 'S03', 'standard', 'available'),
 (4, 'V01', 'vip', 'available'),
-(5, 'V02', 'vip', 'available');
+(5, 'V02', 'vip', 'available'),
+(6, 'S04', 'standard', 'available'),
+(7, 'S05', 'standard', 'available'),
+(9, 'V03', 'vip', 'available'),
+(10, 'S06', 'standard', 'available');
 
 -- --------------------------------------------------------
 
@@ -145,9 +135,7 @@ CREATE TABLE `users` (
 INSERT INTO `users` (`id`, `username`, `password`, `role`, `phone`, `email`, `address`) VALUES
 (3, 'test', '$2y$10$7BHm3tT7xK3EHO8YTkgbp.KAeuZj8M7h5LUfYa0EuVnmyVahsc1FC', 'user', '083-200-2001', 'test@oGc.com', 'vp^j'),
 (4, 'admin', '$2y$10$.HmYUCy/lRowAk59VXmP1unCMDvyw9HHZPiptnBV1T84QYCvhOhGq', 'admin', NULL, NULL, NULL),
-(5, 'hi', '$2y$10$4Xu9YLwu2r1Gl6Ifb1iLYe6koxnb/Ns8Da.3YcC1qG7Lu0zCcg/wS', 'user', '083-200-2002', 'jWTxhk@hyper.cper', ''),
-(7, 'test1', '$2y$10$gDyKnfFQJ5AxYOt0LuMxBOM3oPqdgbi9UbvER/kXCuNwx77ohEw6u', 'user', NULL, NULL, NULL),
-(8, 'ttt', '$2y$10$ZBlBXOb4zpzUg2UNHs34NORyX7ZyaB5vg62FCMNjFI5b0SFbEVabO', 'user', NULL, NULL, NULL);
+(9, 'aaa', '$2y$10$mE8L3unIEn1ZelCWIqVlQ.aHUQD8EJFLsc.KKpY0dLua2jmCpHl06', 'user', '666666666', '321@123', '123');
 
 --
 -- Indexes for dumped tables
@@ -199,31 +187,31 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `cats`
 --
 ALTER TABLE `cats`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=31;
 
 --
 -- AUTO_INCREMENT for table `payments`
 --
 ALTER TABLE `payments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT for table `reservations`
 --
 ALTER TABLE `reservations`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
 
 --
 -- AUTO_INCREMENT for table `rooms`
 --
 ALTER TABLE `rooms`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- Constraints for dumped tables

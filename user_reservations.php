@@ -1,11 +1,20 @@
 <?php
 session_start();
-include 'db_connect.php';
 
-// ตรวจสอบการล็อกอินและบทบาท
+// Check if the user is a user
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'user') {
     header("Location: login.php");
     exit();
+}
+
+$servername = "localhost";
+$username = "root";
+$password = "";
+$dbname = "cathotel_db";
+
+$conn = new mysqli($servername, $username, $password, $dbname);
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
 }
 
 // ดึงข้อมูลผู้ใช้
@@ -25,7 +34,8 @@ $stmt = $conn->prepare("
         c.name AS cat_name, 
         r.checkin_code, 
         r.check_in, 
-        r.paid
+        r.paid,
+        r.status  /* เพิ่มบรรทัดนี้เพื่อดึงสถานะการจอง */
     FROM reservations r
     JOIN cats c ON r.cat_id = c.id
     WHERE r.customer_id = ?
@@ -61,6 +71,7 @@ $conn->close();
     .pending { background-color: #fcd34d; color: #92400e; }
     .confirmed { background-color: #d1fae5; color: #065f46; }
     .checked-in { background-color: #bfdbfe; color: #1e40af; }
+    .completed { background-color: #c7d2fe; color: #4338ca; } /* สีใหม่สำหรับสถานะ Completed */
 </style>
 </head>
 <body class="bg-gray-100 font-sans">
@@ -100,7 +111,9 @@ $conn->close();
                                 <td class="py-3 px-6"><?php echo htmlspecialchars($res['cat_name']); ?></td>
                                 <td class="py-3 px-6 font-bold text-gray-800"><?php echo htmlspecialchars($res['checkin_code'] ?? 'ไม่มีรหัส'); ?></td>
                                 <td class="py-3 px-6">
-                                    <?php if ($res['check_in'] == 1): ?>
+                                    <?php if ($res['status'] === 'completed'): ?>
+                                        <span class="status-badge completed">เช็คเอาท์แล้ว</span>
+                                    <?php elseif ($res['check_in'] == 1): ?>
                                         <span class="status-badge checked-in">เช็คอินแล้ว</span>
                                     <?php elseif ($res['paid'] == 1): ?>
                                         <span class="status-badge confirmed">ชำระเงินแล้ว</span>
