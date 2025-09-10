@@ -274,6 +274,11 @@ $conn->close();
                                         <li><span class="font-medium">ค่าใช้จ่ายทั้งหมด:</span> <?php echo number_format($res['total_cost'], 2); ?> บาท</li>
                                     </ul>
                                 </div>
+                                <form method="POST" action="payments.php" onsubmit="return confirm('คุณต้องการชำระการจองนี้?');">
+                                    <button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200">
+                                        ชำระ
+                                    </button>
+                                </form>
                                 <form method="POST" onsubmit="return confirm('คุณแน่ใจหรือไม่ว่าต้องการยกเลิกการจองนี้?');">
                                     <input type="hidden" name="action" value="delete_reservation">
                                     <input type="hidden" name="reservation_id" value="<?php echo $res['id']; ?>">

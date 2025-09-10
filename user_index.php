@@ -119,7 +119,7 @@ $conn->close();
                     </table>
                 </div>
             <?php else: ?>
-                <p class="text-gray-500">คุณยังไม่มีข้อมูลแมว</p>
+                <p class="text-gray-500">คุณยังไม่มีข้อมูลแมว</p>  <a href="my_cats.php" class="text-indigo-600 hover:underline inline-block">เพิ่มข้อมูลเเมว</a>
             <?php endif; ?>
         </div>
 
