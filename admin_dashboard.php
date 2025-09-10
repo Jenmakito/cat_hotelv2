@@ -162,6 +162,7 @@ $conn->close();
 <p>Admin mode ของผู้ดูแลระบบ</p>
 <a href="logout.php">ออกจากระบบ</a>
 <a href="admin_gm/admin_add_room.php" class="approve" style="margin-left: 10px;">เพิ่มห้องพักใหม่</a>
+<a href="admin_gm/report.php" >รายงาน</a>
 <hr>
 
 <div class="dashboard-container">
@@ -179,7 +180,6 @@ $conn->close();
                         <td class="actions">
                             <a href="admin_gm/edit_customer.php?id=<?php echo $c['id']; ?>" class="approve">แก้ไข</a>
                             <a href="admin_gm/delete_customer.php?id=<?php echo $c['id']; ?>" class="delete" onclick="return confirm('คุณต้องการลบข้อมูลลูกค้ารายนี้หรือไม่?');">ลบ</a>
-                            <a href="admin_gm/customer_history.php?customer_name=<?php echo urlencode($c['username']); ?>" class="history">ดูประวัติ</a>
                         </td>
                     </tr>
                 <?php endforeach; else: ?>
@@ -211,25 +211,6 @@ $conn->close();
             </tbody>
         </table>
     </div>
-
-    <div class="section">
-        <h3>ข้อมูลห้องพัก</h3>
-        <table>
-            <thead><tr><th>หมายเลขห้อง</th><th>ประเภท</th><th>สถานะ</th></tr></thead>
-            <tbody>
-                <?php if(!empty($rooms)): foreach($rooms as $room): ?>
-                    <tr>
-                        <td><?php echo htmlspecialchars($room['room_number']); ?></td>
-                        <td><?php echo htmlspecialchars($room['room_type']); ?></td>
-                        <td><?php echo htmlspecialchars($room['status']); ?></td>
-                    </tr>
-                <?php endforeach; else: ?>
-                    <tr><td colspan="3">ไม่มีข้อมูลห้องพัก</td></tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
-
     <div class="section full-width-section">
         <h3>ข้อมูลการจอง</h3>
         <table>
