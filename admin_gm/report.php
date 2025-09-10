@@ -1,9 +1,6 @@
 <?php
 // กำหนดข้อมูลการเชื่อมต่อฐานข้อมูล
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "cathotel_db";
+include '../db_connect.php';
 
 // สร้างการเชื่อมต่อ
 $conn = new mysqli($servername, $username, $password, $dbname);
@@ -256,19 +253,12 @@ $currentReportInfo = $reportData[$currentReport];
                 <option value="?report=cats" <?php echo $currentReport == 'cats' ? 'selected' : ''; ?>>รายงานข้อมูลแมว</option>
             </select>
         </div>
-        
-        <div class="date-range">
-            <span>วันที่เริ่ม:</span>
-            <input type="date" id="dateFrom">
-            <span>ถึง:</span>
-            <input type="date" id="dateTo">
-            <button onclick="filterByDate()">ค้นหา</button>
-        </div>
-        
+
         <div class="button-group">
             <button class="copy-btn" onclick="copyTable('<?php echo $currentReportInfo['tableId']; ?>')">Copy</button>
             <button class="csv-btn" onclick="exportTableToCSV('<?php echo $currentReportInfo['tableId']; ?>', '<?php echo $currentReport; ?>_report.csv')">CSV</button>
             <button class="print-btn" onclick="printTable('<?php echo $currentReportInfo['tableId']; ?>', '<?php echo $currentReportInfo['title']; ?>')">Print</button>
+            <a href="../admin_dashboard.php" class="back-link">x</a>
         </div>
         <?php if ($currentReportInfo['showSearch']): ?>
         <?php endif; ?>
