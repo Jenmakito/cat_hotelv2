@@ -143,6 +143,7 @@ $conn->close();
     <title>การจองห้องพักของฉัน</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -228,15 +229,17 @@ $conn->close();
                     </div>
 
                     <div>
-                        <label for="date_from" class="block text-sm font-medium text-gray-700">วันที่เข้าพัก:</label>
-                        <input type="date" id="date_from" name="date_from" required
-                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" onchange="calculatePrice()">
+                        <label for="date_from_display" class="block text-sm font-medium text-gray-700">วันที่เข้าพัก:</label>
+                        <input type="text" id="date_from_display" placeholder="กรุณาเลือกวันที่..." required
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <input type="hidden" id="date_from" name="date_from">
                     </div>
 
                     <div>
-                        <label for="date_to" class="block text-sm font-medium text-gray-700">วันที่สิ้นสุด:</label>
-                        <input type="date" id="date_to" name="date_to" required
-                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" onchange="calculatePrice()">
+                        <label for="date_to_display" class="block text-sm font-medium text-gray-700">วันที่สิ้นสุด:</label>
+                        <input type="text" id="date_to_display" placeholder="กรุณาเลือกวันที่..." required
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <input type="hidden" id="date_to" name="date_to">
                     </div>
 
                     <div id="price_display" class="text-lg font-semibold text-gray-800">
@@ -264,29 +267,33 @@ $conn->close();
                     <div class="space-y-4">
                         <?php foreach($reservations as $res): ?>
                             <div class="p-4 bg-indigo-50 rounded-lg border border-indigo-200 flex justify-between items-center">
-                                <div>
-                                    <h5 class="text-lg font-semibold text-indigo-800 mb-2">แมว: <?php echo htmlspecialchars($res['cat_name']); ?></h5>
-                                    <ul class="text-indigo-700 space-y-1">
-                                        <li><span class="font-medium">ห้องพัก:</span> <?php echo htmlspecialchars($res['room_number']); ?> (<?php echo htmlspecialchars($res['room_type'] == 'standard' ? 'ห้องธรรมดา' : 'VIP'); ?>)</li>
-                                        <li><span class="font-medium">วันที่เข้าพัก:</span> <?php echo htmlspecialchars($res['date_from']); ?></li>
-                                        <li><span class="font-medium">วันที่สิ้นสุด:</span> <?php echo htmlspecialchars($res['date_to']); ?></li>
-                                        <li><span class="font-medium">สถานะ:</span> <?php echo $res['paid'] ? 'ชำระเงินแล้ว' : 'ยังไม่ได้ชำระ'; ?></li>
-                                        <li><span class="font-medium">ค่าใช้จ่ายทั้งหมด:</span> <?php echo number_format($res['total_cost'], 2); ?> บาท</li>
-                                    </ul>
-                                </div>
-                                <form method="POST" action="payments.php" onsubmit="return confirm('คุณต้องการชำระการจองนี้?');">
-                                    <button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200">
-                                        ชำระ
-                                    </button>
-                                </form>
-                                <form method="POST" onsubmit="return confirm('คุณแน่ใจหรือไม่ว่าต้องการยกเลิกการจองนี้?');">
-                                    <input type="hidden" name="action" value="delete_reservation">
-                                    <input type="hidden" name="reservation_id" value="<?php echo $res['id']; ?>">
-                                    <button type="submit" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200">
-                                        ยกเลิก
-                                    </button>
-                                </form>
-                            </div>
+								<div>
+									<h5 class="text-lg font-semibold text-indigo-800 mb-2">แมว: <?php echo htmlspecialchars($res['cat_name']); ?></h5>
+									<ul class="text-indigo-700 space-y-1">
+										<li><span class="font-medium">ห้องพัก:</span> <?php echo htmlspecialchars($res['room_number']); ?> (<?php echo htmlspecialchars($res['room_type'] == 'standard' ? 'ห้องธรรมดา' : 'VIP'); ?>)</li>
+										<li><span class="font-medium">วันที่เข้าพัก:</span> 
+											<?php echo date("d/m/Y", strtotime($res['date_from'])); ?>
+										</li>
+										<li><span class="font-medium">วันที่สิ้นสุด:</span> 
+											<?php echo date("d/m/Y", strtotime($res['date_to'])); ?>
+										</li>
+										<li><span class="font-medium">สถานะ:</span> <?php echo $res['paid'] ? 'ชำระเงินแล้ว' : 'ยังไม่ได้ชำระ'; ?></li>
+										<li><span class="font-medium">ค่าใช้จ่ายทั้งหมด:</span> <?php echo number_format($res['total_cost'], 2); ?> บาท</li>
+									</ul>
+								</div>
+								<form method="POST" action="payments.php" onsubmit="return confirm('คุณต้องการชำระการจองนี้?');">
+									<button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200">
+										ชำระ
+									</button>
+								</form>
+								<form method="POST" onsubmit="return confirm('คุณแน่ใจหรือไม่ว่าต้องการยกเลิกการจองนี้?');">
+									<input type="hidden" name="action" value="delete_reservation">
+									<input type="hidden" name="reservation_id" value="<?php echo $res['id']; ?>">
+									<button type="submit" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200">
+										ยกเลิก
+									</button>
+								</form>
+							</div>
                         <?php endforeach; ?>
                     </div>
                 <?php else: ?>
@@ -296,7 +303,42 @@ $conn->close();
         </main>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const dateFromHidden = document.getElementById('date_from');
+            const dateToHidden = document.getElementById('date_to');
+
+            flatpickr("#date_from_display", {
+                dateFormat: "d/m/Y",
+                minDate: "today",
+                onChange: function(selectedDates, dateStr, instance) {
+                    // แปลง d/m/Y เป็น Y-m-d สำหรับ hidden input
+                    if (selectedDates.length > 0) {
+                        const year = selectedDates[0].getFullYear();
+                        const month = String(selectedDates[0].getMonth() + 1).padStart(2, '0');
+                        const day = String(selectedDates[0].getDate()).padStart(2, '0');
+                        dateFromHidden.value = `${year}-${month}-${day}`;
+                    }
+                    calculatePrice();
+                }
+            });
+
+            flatpickr("#date_to_display", {
+                dateFormat: "d/m/Y",
+                minDate: "today",
+                onChange: function(selectedDates, dateStr, instance) {
+                    if (selectedDates.length > 0) {
+                        const year = selectedDates[0].getFullYear();
+                        const month = String(selectedDates[0].getMonth() + 1).padStart(2, '0');
+                        const day = String(selectedDates[0].getDate()).padStart(2, '0');
+                        dateToHidden.value = `${year}-${month}-${day}`;
+                    }
+                    calculatePrice();
+                }
+            });
+        });
+
         function selectRoom(roomId, roomNumber, roomType) {
             document.getElementById('room-selection-section').classList.add('hidden');
             document.getElementById('add-reservation-form').classList.remove('hidden');
@@ -306,6 +348,8 @@ $conn->close();
             document.getElementById('room_type_hidden').value = roomType;
             
             // รีเซ็ตค่าวันที่และราคา
+            document.getElementById('date_from_display').value = '';
+            document.getElementById('date_to_display').value = '';
             document.getElementById('date_from').value = '';
             document.getElementById('date_to').value = '';
             calculatePrice();
@@ -317,6 +361,8 @@ $conn->close();
             
             // รีเซ็ตค่าในฟอร์ม
             document.getElementById('cat_id').value = '0';
+            document.getElementById('date_from_display').value = '';
+            document.getElementById('date_to_display').value = '';
             document.getElementById('date_from').value = '';
             document.getElementById('date_to').value = '';
             calculatePrice();
@@ -332,6 +378,13 @@ $conn->close();
             if (dateFrom && dateTo) {
                 const start = new Date(dateFrom);
                 const end = new Date(dateTo);
+
+                if (end <= start) {
+                    priceDisplay.textContent = 'วันที่สิ้นสุดต้องอยู่หลังวันที่เข้าพัก';
+                    totalCostInput.value = 0;
+                    return;
+                }
+
                 const diffTime = Math.abs(end - start);
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
 
