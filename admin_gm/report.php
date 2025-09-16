@@ -30,17 +30,47 @@ function getRooms($conn) {
     return $res->fetch_all(MYSQLI_ASSOC);
 }
 
-function getPayments($conn) {
+/**
+ * Gets payments with optional method filtering.
+ *
+ * @param mysqli $conn The database connection.
+ * @param string|null $paymentMethod The payment method to filter by.
+ * @return array The fetched payment data.
+ */
+function getPayments($conn, $paymentMethod = null) {
     $sql = "SELECT p.id, u.username as customer_name, r.id as reservation_id, p.amount, p.payment_method, p.payment_date, p.status
             FROM payments p 
             JOIN users u ON p.customer_id = u.id
-            LEFT JOIN reservations r ON p.reservation_id = r.id
-            ORDER BY p.payment_date DESC";
-    $res = $conn->query($sql);
+            LEFT JOIN reservations r ON p.reservation_id = r.id";
+    
+    // Add WHERE clause if a payment method is specified
+    if ($paymentMethod) {
+        $sql .= " WHERE p.payment_method = ?";
+    }
+
+    $sql .= " ORDER BY p.payment_date DESC";
+
+    if ($paymentMethod) {
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("s", $paymentMethod);
+        $stmt->execute();
+        $res = $stmt->get_result();
+    } else {
+        $res = $conn->query($sql);
+    }
+    
     return $res->fetch_all(MYSQLI_ASSOC);
 }
 
-function getReservations($conn) {
+/**
+ * Gets reservations with optional date filtering.
+ *
+ * @param mysqli $conn The database connection.
+ * @param string|null $dateFrom The start date for filtering.
+ * @param string|null $dateTo The end date for filtering.
+ * @return array The fetched reservation data.
+ */
+function getReservations($conn, $dateFrom = null, $dateTo = null) {
     $sql = "SELECT 
                 r.id, 
                 u.username AS customer_name, 
@@ -54,22 +84,49 @@ function getReservations($conn) {
             FROM reservations AS r
             JOIN users AS u ON r.customer_id = u.id
             JOIN cats AS c ON r.cat_id = c.id
-            JOIN rooms AS ro ON r.room_id = ro.id
-            ORDER BY r.id DESC";
-    $res = $conn->query($sql);
+            JOIN rooms AS ro ON r.room_id = ro.id";
+    
+    // Add WHERE clause if dates are specified
+    if ($dateFrom && $dateTo) {
+        $sql .= " WHERE r.date_from >= ? AND r.date_to <= ?";
+    }
+    
+    $sql .= " ORDER BY r.id DESC";
+
+    if ($dateFrom && $dateTo) {
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("ss", $dateFrom, $dateTo);
+        $stmt->execute();
+        $res = $stmt->get_result();
+    } else {
+        $res = $conn->query($sql);
+    }
+    
     return $res->fetch_all(MYSQLI_ASSOC);
 }
 
-// ดึงข้อมูลทั้งหมด
+// Get filter values from URL
+$filterDateFrom = $_GET['date_from'] ?? '';
+$filterDateTo = $_GET['date_to'] ?? '';
+$filterPaymentMethod = $_GET['payment_method'] ?? '';
+
+// Get data for the current report
+$currentReport = $_GET['report'] ?? 'reservations';
+
+$reservations = getReservations($conn, $filterDateFrom, $filterDateTo);
+$payments = getPayments($conn, $filterPaymentMethod);
 $customers = getCustomers($conn);
 $cats = getCats($conn);
 $rooms = getRooms($conn);
-$reservations = getReservations($conn);
-$payments = getPayments($conn);
+
+// Get unique payment methods for the filter dropdown
+$allPayments = getPayments($conn);
+$paymentMethods = [];
+if (!empty($allPayments)) {
+    $paymentMethods = array_unique(array_column($allPayments, 'payment_method'));
+}
 
 $conn->close();
-
-$currentReport = $_GET['report'] ?? 'reservations';
 
 $reportData = [
     'reservations' => [
@@ -78,7 +135,8 @@ $reportData = [
         'tableId' => 'reservationTable',
         'headers' => ['ID', 'user', 'cat', 'room', 'Date of stay', 'Issue date', 'Total cost'],
         'fields' => ['id', 'customer_name', 'cat_name', 'room_number', 'date_from', 'date_to', 'total_cost'],
-        'showSearch' => true
+        'showDateFilter' => true,
+        'showMethodFilter' => false
     ],
     'payments' => [
         'title' => 'รายงานการชำระเงิน',
@@ -86,7 +144,8 @@ $reportData = [
         'tableId' => 'paymentTable',
         'headers' => ['ID pay', 'ID reser', 'user', 'Amount of money', 'How to pay', 'status'],
         'fields' => ['id', 'reservation_id', 'customer_name', 'amount', 'payment_method', 'status'],
-        'showSearch' => false
+        'showDateFilter' => false,
+        'showMethodFilter' => true
     ],
     'customers' => [
         'title' => 'รายงานข้อมูลลูกค้า',
@@ -94,7 +153,8 @@ $reportData = [
         'tableId' => 'customerTable',
         'headers' => ['Username', 'Email', 'เบอร์โทรศัพท์'],
         'fields' => ['username', 'email', 'phone'],
-        'showSearch' => false
+        'showDateFilter' => false,
+        'showMethodFilter' => false
     ],
     'cats' => [
         'title' => 'รายงานข้อมูลแมว',
@@ -102,7 +162,8 @@ $reportData = [
         'tableId' => 'catTable',
         'headers' => ['cat_name', 'user', 'color', 'gender'],
         'fields' => ['name', 'owner_name', 'color', 'gender'],
-        'showSearch' => false
+        'showDateFilter' => false,
+        'showMethodFilter' => false
     ],
     'rooms' => [
         'title' => 'รายงานข้อมูลห้องพัก',
@@ -110,7 +171,8 @@ $reportData = [
         'tableId' => 'roomTable',
         'headers' => ['room', 'type', 'status'],
         'fields' => ['room_number', 'room_type', 'status'],
-        'showSearch' => false
+        'showDateFilter' => false,
+        'showMethodFilter' => false
     ]
 ];
 
@@ -157,19 +219,19 @@ $currentReportInfo = $reportData[$currentReport];
         .controls label, .controls span {
             font-weight: bold;
         }
-        .controls select, .controls input[type="text"] {
+        .controls select, .controls input[type="text"], .controls input[type="date"] {
             padding: 8px;
             border-radius: 4px;
             border: 1px solid #4a4a6a;
             background-color: #3a3a5a;
             color: #e0e0e0;
         }
-        .date-range {
+        .filter-group {
             display: flex;
             align-items: center;
             gap: 5px;
         }
-        .date-range button {
+        .filter-group button {
             padding: 8px 12px;
             border: none;
             border-radius: 4px;
@@ -181,17 +243,21 @@ $currentReportInfo = $reportData[$currentReport];
             display: flex;
             gap: 10px;
         }
-        .button-group button {
+        .button-group button, .button-group a {
             padding: 10px 15px;
             border: none;
             cursor: pointer;
             border-radius: 4px;
             font-weight: bold;
             color: white;
+            text-decoration: none;
+            display: inline-block;
         }
         .copy-btn { background-color: #007bff; }
         .csv-btn { background-color: #28a745; }
         .print-btn { background-color: #6c757d; }
+        .back-link { background-color: #dc3545; }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -227,13 +293,16 @@ $currentReportInfo = $reportData[$currentReport];
         .cancelled { background-color:#9e9e9e; }
         .approved { background-color:#4caf50; }
         .rejected { background-color:#f44336; }
-        .pending_approval { background-color:#ff9800; }
 
-        .search-box {
-            display: flex;
-            align-items: center;
+        @media print {
+            .controls, .header {
+                display: none;
+            }
+            .container {
+                box-shadow: none;
+                margin-top: 0;
+            }
         }
-        
     </style>
 </head>
 <body>
@@ -251,21 +320,45 @@ $currentReportInfo = $reportData[$currentReport];
                 <option value="?report=payments" <?php echo $currentReport == 'payments' ? 'selected' : ''; ?>>รายงานการชำระเงิน</option>
                 <option value="?report=customers" <?php echo $currentReport == 'customers' ? 'selected' : ''; ?>>รายงานข้อมูลลูกค้า</option>
                 <option value="?report=cats" <?php echo $currentReport == 'cats' ? 'selected' : ''; ?>>รายงานข้อมูลแมว</option>
+                <option value="?report=rooms" <?php echo $currentReport == 'rooms' ? 'selected' : ''; ?>>รายงานข้อมูลห้องพัก</option>
             </select>
         </div>
-
+        
         <div class="button-group">
             <button class="copy-btn" onclick="copyTable('<?php echo $currentReportInfo['tableId']; ?>')">Copy</button>
             <button class="csv-btn" onclick="exportTableToCSV('<?php echo $currentReportInfo['tableId']; ?>', '<?php echo $currentReport; ?>_report.csv')">CSV</button>
             <button class="print-btn" onclick="printTable('<?php echo $currentReportInfo['tableId']; ?>', '<?php echo $currentReportInfo['title']; ?>')">Print</button>
-            <a href="../admin_dashboard.php" class="back-link">x</a>
+            <a href="../admin_dashboard.php" class="back-link">X</a>
         </div>
-        <?php if ($currentReportInfo['showSearch']): ?>
-        <?php endif; ?>
     </div>
     
     <h3><?php echo $currentReportInfo['title']; ?></h3>
     
+    <?php if ($currentReport === 'reservations'): ?>
+        <form method="GET" action="" class="filter-group">
+            <input type="hidden" name="report" value="reservations">
+            <span>จากวันที่:</span>
+            <input type="date" name="date_from" value="<?php echo htmlspecialchars($filterDateFrom); ?>">
+            <span>ถึงวันที่:</span>
+            <input type="date" name="date_to" value="<?php echo htmlspecialchars($filterDateTo); ?>">
+            <button type="submit">ค้นหา</button>
+        </form>
+    <?php elseif ($currentReport === 'payments'): ?>
+        <form method="GET" action="" class="filter-group">
+            <input type="hidden" name="report" value="payments">
+            <span>วิธีการชำระเงิน:</span>
+            <select name="payment_method">
+                <option value="">ทั้งหมด</option>
+                <?php foreach($paymentMethods as $method): ?>
+                    <option value="<?php echo htmlspecialchars($method); ?>" <?php echo $filterPaymentMethod === $method ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars($method); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <button type="submit">ค้นหา</button>
+        </form>
+    <?php endif; ?>
+
     <table id="<?php echo $currentReportInfo['tableId']; ?>">
         <thead>
             <tr>
@@ -302,24 +395,6 @@ $currentReportInfo = $reportData[$currentReport];
 </div>
 
 <script>
-    // JavaScript สำหรับฟังก์ชันค้นหา
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-        searchInput.addEventListener('keyup', function() {
-            const value = this.value.toLowerCase();
-            const tableId = '<?php echo $currentReportInfo['tableId']; ?>';
-            const rows = document.querySelectorAll(`#${tableId} tbody tr`);
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                if (text.includes(value)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-    }
-
     // JavaScript สำหรับปุ่ม Copy, CSV, Print
     function copyTable(tableId) {
         const table = document.getElementById(tableId);
@@ -360,21 +435,48 @@ $currentReportInfo = $reportData[$currentReport];
         document.body.removeChild(downloadLink);
     }
 
+    // New and improved printTable function
     function printTable(tableId, title) {
         const printContents = document.getElementById(tableId).outerHTML;
         const originalContents = document.body.innerHTML;
-        document.body.innerHTML = `<h2>${title}</h2>` + printContents;
+        
+        // Check if there is a payment method filter form and get the selected value
+        const paymentMethodForm = document.querySelector('form.filter-group select[name="payment_method"]');
+        let paymentMethodText = '';
+        if (paymentMethodForm && paymentMethodForm.value !== '') {
+            const selectedMethod = paymentMethodForm.options[paymentMethodForm.selectedIndex].text;
+            paymentMethodText = `<p style="text-align: center; color: #555; margin-bottom: 10px;">
+                                    **ประเภทการชำระเงิน:** ${selectedMethod}
+                                 </p>`;
+        }
+
+        // Check if there is a date filter form and get the values
+        const dateForm = document.querySelector('form.filter-group input[name="date_from"]');
+        let dateRangeText = '';
+        if (dateForm) {
+            const dateFrom = document.querySelector('input[name="date_from"]').value;
+            const dateTo = document.querySelector('input[name="date_to"]').value;
+            
+            if (dateFrom && dateTo) {
+                const formattedDateFrom = new Date(dateFrom).toLocaleDateString('th-TH', { dateStyle: 'long' });
+                const formattedDateTo = new Date(dateTo).toLocaleDateString('th-TH', { dateStyle: 'long' });
+                dateRangeText = `<p style="text-align: center; color: #555; margin-bottom: 20px;">
+                                    **จากวันที่:** ${formattedDateFrom} **ถึงวันที่:** ${formattedDateTo}
+                                 </p>`;
+            }
+        }
+        
+        document.body.innerHTML = `
+            <h2 style="text-align: center;">${title}</h2>
+            ${dateRangeText}
+            ${paymentMethodText}
+            ${printContents}
+        `;
+        
         window.print();
         document.body.innerHTML = originalContents;
         window.location.reload();
     }
-    
-    function filterByDate() {
-        // ฟังก์ชันนี้ยังไม่ได้ถูกเขียนโค้ดสำหรับกรองข้อมูลจริง
-        // จะต้องส่งวันที่ไปประมวลผลที่เซิร์ฟเวอร์ด้วย AJAX หรือฟอร์ม
-        alert('ฟังก์ชันกรองตามวันที่ยังไม่ถูกพัฒนา');
-    }
-
 </script>
 
 </body>
